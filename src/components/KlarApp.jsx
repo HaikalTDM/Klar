@@ -84,6 +84,13 @@ export default function KlarApp() {
 
     // UI State
     const [isSidebarOpen, setSidebarOpen] = useState(true);
+    // Auto-close sidebar on mobile mount
+    useEffect(() => {
+        if (window.innerWidth < 768) {
+            setSidebarOpen(false);
+        }
+    }, []);
+
     const [showNewContextModal, setShowNewContextModal] = useState(false);
     const [showTimerSettings, setShowTimerSettings] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date()); // Clock state
@@ -154,7 +161,7 @@ export default function KlarApp() {
             setIsPremium(true);
 
             if (user) {
-                const settingsRef = doc(db, 'users', user.uid, 'settings', 'preferences');
+                const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'preferences');
                 setDoc(settingsRef, { isPremium: true }, { merge: true });
             }
 
@@ -982,527 +989,544 @@ export default function KlarApp() {
 
                 <AnimatePresence mode='wait'>
                     {isSidebarOpen && (
-                        <motion.aside
-                            initial={{ x: -250, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: -250, opacity: 0 }}
-                            className={`w-72 border-r flex flex-col h-full flex-shrink-0 transition-colors ${themeMode === 'custom'
-                                ? 'bg-[var(--sidebar-bg)] border-[var(--border-color)]'
-                                : 'bg-[#F7F7F7] dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-                                }`}
-                        >
-                            <div className={`h-16 flex items-center px-6 border-b ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-200/50 dark:border-slate-800/50'}`}>
-                                <div className="flex items-center gap-2 font-bold text-lg">
-                                    <div className={`w-5 h-5 rounded flex items-center justify-center ${themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--sidebar-bg)]' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}>
-                                        <Command size={10} />
+                        <>
+                            {/* Mobile Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setSidebarOpen(false)}
+                                className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+                            />
+
+                            <motion.aside
+                                initial={{ x: -250, opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: -250, opacity: 0 }}
+                                className={`fixed md:relative top-0 bottom-0 left-0 z-50 w-72 border-r flex flex-col h-full flex-shrink-0 transition-colors shadow-2xl md:shadow-none ${themeMode === 'custom'
+                                    ? 'bg-[var(--sidebar-bg)] border-[var(--border-color)]'
+                                    : 'bg-[#F7F7F7] dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                                    }`}
+                            >
+                                <div className={`h-16 flex items-center px-6 border-b ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-200/50 dark:border-slate-800/50'}`}>
+                                    <div className="flex items-center gap-2 font-bold text-lg">
+                                        <div className={`w-5 h-5 rounded flex items-center justify-center ${themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--sidebar-bg)]' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'}`}>
+                                            <Command size={10} />
+                                        </div>
+                                        Klar.
                                     </div>
-                                    Klar.
+                                    {/* Mobile Close Button */}
+                                    <button
+                                        onClick={() => setSidebarOpen(false)}
+                                        className="md:hidden p-1 opacity-60 hover:opacity-100"
+                                    >
+                                        <X size={20} />
+                                    </button>
                                 </div>
-                            </div>
 
-                            <div className="flex-1 overflow-y-auto p-4 space-y-1">
-                                <div className="px-2 pb-2 text-[10px] font-bold opacity-50 uppercase tracking-wider flex justify-between items-center">
-                                    <span>Your Contexts</span>
-                                    <span className="opacity-70 px-1.5 py-0.5 rounded text-[9px] bg-black/5 dark:bg-white/10">{contexts.length}</span>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-1">
+                                    <div className="px-2 pb-2 text-[10px] font-bold opacity-50 uppercase tracking-wider flex justify-between items-center">
+                                        <span>Your Contexts</span>
+                                        <span className="opacity-70 px-1.5 py-0.5 rounded text-[9px] bg-black/5 dark:bg-white/10">{contexts.length}</span>
+                                    </div>
+
+                                    {contexts.map(ctx => {
+                                        const theme = THEMES.find(t => t.id === ctx.themeId) || THEMES[0];
+                                        const isActive = ctx.id === activeContextId;
+                                        const activeClass = themeMode === 'custom' ? `bg-[var(--card-bg)] text-[var(--accent-color)] ring-1 ring-[var(--accent-color)]` : 'bg-white dark:bg-slate-800 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 text-slate-900 dark:text-white';
+                                        const inactiveClass = themeMode === 'custom' ? 'text-[var(--text-color)] opacity-60 hover:opacity-100 hover:bg-white/5' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-200';
+
+                                        return (
+                                            <button
+                                                key={ctx.id}
+                                                onClick={() => setActiveContextId(ctx.id)}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative ${isActive ? activeClass : inactiveClass}`}
+                                            >
+                                                <span className={`flex items-center justify-center w-6 h-6 rounded ${themeMode === 'custom' ? 'bg-white/10' : theme.bg}`}>
+                                                    <span className="text-sm">{ctx.emoji}</span>
+                                                </span>
+                                                <span className="truncate flex-1 text-left flex items-center gap-2">
+                                                    {ctx.name}
+                                                    {ctx.isShared && <Users size={12} className="opacity-50 shrink-0" />}
+                                                </span>
+                                                {isActive && (
+                                                    <div onClick={(e) => { e.stopPropagation(); handleDeleteContext(ctx.id); }} className="opacity-30 group-hover:opacity-100 p-1 hover:bg-black/5 dark:hover:bg-white/10 hover:text-red-500 rounded transition-all">
+                                                        <Trash2 size={12} />
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+
+                                    <button
+                                        onClick={() => setShowNewContextModal(true)}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium border border-dashed mt-4 transition-all opacity-60 hover:opacity-100 ${themeMode === 'custom' ? 'border-[var(--border-color)] hover:border-[var(--accent-color)]' : 'border-slate-300 dark:border-slate-700'}`}
+                                    >
+                                        <div className="w-6 h-6 rounded border border-current flex items-center justify-center"><Plus size={14} /></div>
+                                        Create Context
+                                    </button>
                                 </div>
 
-                                {contexts.map(ctx => {
-                                    const theme = THEMES.find(t => t.id === ctx.themeId) || THEMES[0];
-                                    const isActive = ctx.id === activeContextId;
-                                    const activeClass = themeMode === 'custom' ? `bg-[var(--card-bg)] text-[var(--accent-color)] ring-1 ring-[var(--accent-color)]` : 'bg-white dark:bg-slate-800 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 text-slate-900 dark:text-white';
-                                    const inactiveClass = themeMode === 'custom' ? 'text-[var(--text-color)] opacity-60 hover:opacity-100 hover:bg-white/5' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-200';
+                                <div className={`p-4 border-t space-y-1 ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-200 dark:border-slate-800'}`}>
+                                    <button onClick={handleOpenAI} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100 group">
+                                        <Sparkles size={16} /> Ask AI
+                                        <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded border ${themeMode === 'custom' ? 'border-[var(--border-color)] bg-white/5' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>Ctrl+J</span>
+                                    </button>
+                                    <button onClick={() => setShowTimerSettings(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100"><Settings size={16} /> Settings</button>
+                                    <button onClick={() => setShowStats(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100"><BarChart2 size={16} /> Analytics</button>
+                                    <button onClick={() => setShowShortcutsHelp(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100"><HelpCircle size={16} /> Shortcuts</button>
 
-                                    return (
-                                        <button
-                                            key={ctx.id}
-                                            onClick={() => setActiveContextId(ctx.id)}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative ${isActive ? activeClass : inactiveClass}`}
-                                        >
-                                            <span className={`flex items-center justify-center w-6 h-6 rounded ${themeMode === 'custom' ? 'bg-white/10' : theme.bg}`}>
-                                                <span className="text-sm">{ctx.emoji}</span>
-                                            </span>
-                                            <span className="truncate flex-1 text-left flex items-center gap-2">
-                                                {ctx.name}
-                                                {ctx.isShared && <Users size={12} className="opacity-50 shrink-0" />}
-                                            </span>
-                                            {isActive && (
-                                                <div onClick={(e) => { e.stopPropagation(); handleDeleteContext(ctx.id); }} className="opacity-30 group-hover:opacity-100 p-1 hover:bg-black/5 dark:hover:bg-white/10 hover:text-red-500 rounded transition-all">
-                                                    <Trash2 size={12} />
+                                    <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center px-2">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            {user?.photoURL ? (
+                                                <img
+                                                    src={user.photoURL}
+                                                    alt="Profile"
+                                                    className="w-8 h-8 rounded-full object-cover"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--card-bg)]' : 'bg-slate-200 dark:bg-slate-800'}`}>
+                                                    {user?.displayName?.[0]?.toUpperCase() || <User size={14} />}
                                                 </div>
                                             )}
-                                        </button>
-                                    );
-                                })}
-
-                                <button
-                                    onClick={() => setShowNewContextModal(true)}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium border border-dashed mt-4 transition-all opacity-60 hover:opacity-100 ${themeMode === 'custom' ? 'border-[var(--border-color)] hover:border-[var(--accent-color)]' : 'border-slate-300 dark:border-slate-700'}`}
-                                >
-                                    <div className="w-6 h-6 rounded border border-current flex items-center justify-center"><Plus size={14} /></div>
-                                    Create Context
-                                </button>
-                            </div>
-
-                            <div className={`p-4 border-t space-y-1 ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-200 dark:border-slate-800'}`}>
-                                <button onClick={handleOpenAI} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100 group">
-                                    <Sparkles size={16} /> Ask AI
-                                    <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded border ${themeMode === 'custom' ? 'border-[var(--border-color)] bg-white/5' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>Ctrl+J</span>
-                                </button>
-                                <button onClick={() => setShowTimerSettings(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100"><Settings size={16} /> Settings</button>
-                                <button onClick={() => setShowStats(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100"><BarChart2 size={16} /> Analytics</button>
-                                <button onClick={() => setShowShortcutsHelp(true)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all opacity-70 hover:opacity-100"><HelpCircle size={16} /> Shortcuts</button>
-
-                                <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center px-2">
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                        {user?.photoURL ? (
-                                            <img
-                                                src={user.photoURL}
-                                                alt="Profile"
-                                                className="w-8 h-8 rounded-full object-cover"
-                                                referrerPolicy="no-referrer"
-                                            />
-                                        ) : (
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--card-bg)]' : 'bg-slate-200 dark:bg-slate-800'}`}>
-                                                {user?.displayName?.[0]?.toUpperCase() || <User size={14} />}
+                                            <div className="flex flex-col truncate">
+                                                <span className="text-xs font-bold truncate">{user?.displayName || user?.email?.split('@')[0] || 'User'}</span>
+                                                {user?.email && <span className="text-[10px] opacity-50 truncate">{user.email}</span>}
                                             </div>
-                                        )}
-                                        <div className="flex flex-col truncate">
-                                            <span className="text-xs font-bold truncate">{user?.displayName || user?.email?.split('@')[0] || 'User'}</span>
-                                            {user?.email && <span className="text-[10px] opacity-50 truncate">{user.email}</span>}
                                         </div>
+                                        <button onClick={handleLogout} className="opacity-50 hover:text-red-500"><LogOut size={16} /></button>
                                     </div>
-                                    <button onClick={handleLogout} className="opacity-50 hover:text-red-500"><LogOut size={16} /></button>
                                 </div>
-                            </div>
-                        </motion.aside>
+                            </motion.aside>
                     )}
-                </AnimatePresence>
+                        </AnimatePresence>
 
-                <main className="flex-1 flex flex-col h-full overflow-hidden relative transition-colors">
-                    <header className={`h-16 flex items-center justify-between px-8 border-b flex-shrink-0 ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-100 dark:border-slate-900'}`}>
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 opacity-60 hover:opacity-100 rounded-lg"><LayoutGrid size={18} /></button>
-                            {activeContext && <span className={`font-medium flex items-center gap-2 ${themeMode === 'custom' ? 'text-[var(--accent-color)]' : ''}`}>{activeContext.emoji} {activeContext.name}</span>}
-                            {/* Toggle Zen Mode Button */}
-                            <button
-                                onClick={() => setIsZenMode(true)}
-                                className={`ml-4 p-2 rounded-lg transition-all opacity-50 hover:opacity-100 ${isZenMode ? 'bg-[var(--accent-color)] text-[var(--bg-color)] opacity-100' : ''}`}
-                                title="Enter Zen Mode"
-                            >
-                                <Maximize2 size={18} />
-                            </button>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                            {/* Live Clock */}
-                            <div className="hidden md:flex flex-col items-end mr-2">
-                                <span className={`text-sm font-bold font-mono leading-none ${themeMode === 'custom' ? 'opacity-90' : 'opacity-80'}`}>
-                                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                <span className={`text-[10px] uppercase tracking-wider font-bold leading-none mt-1 ${themeMode === 'custom' ? 'opacity-60' : 'opacity-40'}`}>
-                                    {currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                                </span>
-                            </div>
-
-
-
-                            <AnimatePresence mode="wait">
-                                {completionToast ? (
-                                    <motion.div key="toast" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
-                                        <Check size={14} /> {completionToast.text}
-                                    </motion.div>
-                                ) : focusState.taskId ? (
-                                    <motion.button key="timer" onClick={() => setShowTimerSettings(true)} className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${focusState.isRunning ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                                        <div className={`w-2 h-2 rounded-full ${focusState.isRunning ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`} />
-                                        {formatTime(focusState.remaining)}
-                                    </motion.button>
-                                ) : null}
-                            </AnimatePresence>
-
-                            {activeContext?.isShared && (
-                                <button onClick={() => setShowShareModal(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Share">
-                                    <Share2 size={20} />
+                    <main className="flex-1 flex flex-col h-full overflow-hidden relative transition-colors w-full">
+                        <header className={`h-16 flex items-center justify-between px-4 md:px-8 border-b flex-shrink-0 ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-100 dark:border-slate-900'}`}>
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 opacity-60 hover:opacity-100 rounded-lg"><LayoutGrid size={18} /></button>
+                                {activeContext && <span className={`font-medium flex items-center gap-2 ${themeMode === 'custom' ? 'text-[var(--accent-color)]' : ''}`}>{activeContext.emoji} {activeContext.name}</span>}
+                                {/* Toggle Zen Mode Button */}
+                                <button
+                                    onClick={() => setIsZenMode(true)}
+                                    className={`ml-4 p-2 rounded-lg transition-all opacity-50 hover:opacity-100 ${isZenMode ? 'bg-[var(--accent-color)] text-[var(--bg-color)] opacity-100' : ''}`}
+                                    title="Enter Zen Mode"
+                                >
+                                    <Maximize2 size={18} />
                                 </button>
-                            )}
-                            <button onClick={() => setShowStats(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><BarChart2 size={20} /></button>
-                        </div>
-                    </header>
-
-                    <div className="flex-1 overflow-y-auto">
-                        {!activeContext ? (
-                            <div className="h-full flex items-center justify-center opacity-50">Select a context</div>
-                        ) : (
-                            <div className="max-w-3xl mx-auto py-12 px-6">
-                                <div className="mb-10">
-                                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-6 text-2xl shadow-sm ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)]' : `${activeTheme.bg} ${activeTheme.text}`}`}>{activeContext.emoji}</div>
-                                    <h1 className="text-4xl font-bold tracking-tight mb-2">{activeContext.name}</h1>
-                                </div>
-
-                                <div className="mb-8">
-                                    <form onSubmit={handleQuickCreateTask} className="relative group">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40"><Plus size={20} /></div>
-                                        <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder={`Add a task to ${activeContext.name}...`} className={`w-full h-14 pl-12 pr-16 border rounded-xl shadow-sm text-lg outline-none bg-transparent ${themeMode === 'custom' ? 'border-[var(--border-color)] placeholder-[var(--text-color)]/30' : 'border-slate-200 dark:border-slate-800'}`} />
-                                        <button type="button" onClick={() => { setShowDetailedAdd(true); setDetailedForm(prev => ({ ...prev, text: newTaskText })); setNewTaskText(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 opacity-40 hover:opacity-100"><Maximize2 size={16} /></button>
-                                    </form>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <AnimatePresence>
-                                        {sortedTasks.map((task) => {
-                                            const isFocused = focusState.taskId === task.id;
-                                            const progress = isFocused ? ((focusState.totalDuration - focusState.remaining) / focusState.totalDuration) * 100 : 0;
-                                            const dateInfo = formatDueDate(task.dueDate);
-
-                                            return (
-                                                <motion.div
-                                                    key={task.id}
-                                                    layout
-                                                    initial={{ opacity: 0, y: 10 }}
-                                                    animate={{
-                                                        opacity: 1, y: 0,
-                                                        scale: isFocused ? 1.02 : 1,
-                                                        borderColor: isFocused ? (themeMode === 'custom' ? 'var(--accent-color)' : 'currentColor') : 'transparent'
-                                                    }}
-                                                    exit={{ opacity: 0, scale: 0.95 }}
-                                                    className={`group relative flex items-start gap-4 p-4 border rounded-xl ${themeMode === 'custom' ? `bg-[var(--card-bg)] ${isFocused ? 'border-[var(--accent-color)]' : 'border-[var(--border-color)]'}` : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800`}`}
-                                                >
-                                                    {isFocused && <motion.div className={`absolute inset-0 rounded-xl pointer-events-none ${themeMode === 'custom' ? 'bg-white/5' : 'bg-blue-50 dark:bg-blue-900/10'}`} layoutId="focusHighlight" />}
-
-                                                    <button onClick={() => toggleTask(task)} className={`flex-shrink-0 w-6 h-6 mt-1 rounded-lg border-2 flex items-center justify-center z-10 ${task.isDone ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                        {task.isDone && <Check size={14} strokeWidth={3} />}
-                                                    </button>
-
-                                                    <div
-                                                        className="flex-1 z-10 min-w-0 cursor-pointer"
-                                                        onClick={() => startEditing(task)}
-                                                    >
-                                                        <span className={`text-[15px] font-medium block ${task.isDone ? 'opacity-50 line-through' : ''} ${isFocused ? 'text-xl font-bold' : ''}`}>{task.text}</span>
-                                                        {(dateInfo || task.description) && !task.isDone && (
-                                                            <div className="flex flex-wrap items-center gap-3 mt-1.5 opacity-60 text-xs">
-                                                                {dateInfo && <div className={`flex items-center gap-1 ${dateInfo.isOverdue ? 'text-red-500' : ''}`}><Calendar size={12} /> {dateInfo.text}</div>}
-                                                                {task.description && <div className="flex items-center gap-1"><AlignLeft size={12} /> Notes</div>}
-                                                            </div>
-                                                        )}
-                                                        {isFocused && (
-                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 flex items-center gap-3 text-xs font-medium opacity-60">
-                                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/5 dark:bg-white/10">
-                                                                    {focusState.phase === 'focus' ? <Brain size={12} /> : <Coffee size={12} />}
-                                                                    <span className="uppercase">{focusState.phase}</span>
-                                                                </div>
-                                                                <span>{Math.round(progress)}% done</span>
-                                                            </motion.div>
-                                                        )}
-                                                    </div>
-
-                                                    {!task.isDone && (
-                                                        <div className="flex items-center gap-2 z-10 self-start mt-0.5">
-                                                            <div className="relative">
-                                                                {isFocused && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><ProgressRing radius={22} stroke={2} progress={progress} /></div>}
-                                                                <button
-                                                                    onClick={() => toggleTimer(task.id)}
-                                                                    className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${isFocused
-                                                                        ? (themeMode === 'custom'
-                                                                            ? 'bg-[var(--accent-color)] text-[var(--main-bg)]'
-                                                                            : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
-                                                                        : (themeMode === 'custom'
-                                                                            ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-[var(--main-bg)]'
-                                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900')
-                                                                        }`}
-                                                                >
-                                                                    {isFocused && focusState.isRunning ? <Pause size={16} /> : <Play size={16} />}
-                                                                </button>
-                                                            </div>
-
-                                                            <AnimatePresence>
-                                                                {(isFocused || (!isFocused && !focusState.isRunning)) && (
-                                                                    <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} className="flex items-center gap-1 overflow-hidden">
-                                                                        {isFocused ? (
-                                                                            <>
-                                                                                <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Enter Zen Mode"><Maximize2 size={16} /></button>
-                                                                                <button onClick={stopTimer} className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg"><Square size={16} /></button>
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Focus on this task"><Maximize2 size={16} /></button>
-                                                                                <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
-                                                                            </>
-                                                                        )}
-                                                                        <button
-                                                                            onClick={() => setShowTimerSettings(true)}
-                                                                            className={`p-2 rounded-lg transition-colors ${Object.values(soundMixer || {}).some(v => v > 0)
-                                                                                ? 'opacity-100 text-blue-500'
-                                                                                : 'opacity-40 hover:opacity-100'
-                                                                                }`}
-                                                                            title={Object.values(soundMixer || {}).some(v => v > 0) ? "Sound ON" : "Sound OFF"}
-                                                                        >
-                                                                            {Object.values(soundMixer || {}).some(v => v > 0) ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => deleteTask(task.id)}
-                                                                            className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg transition-colors"
-                                                                        >
-                                                                            <Trash2 size={16} />
-                                                                        </button>
-                                                                    </motion.div>
-                                                                )}
-                                                            </AnimatePresence>
-                                                        </div>
-                                                    )}
-                                                </motion.div>
-                                            );
-                                        })}
-                                    </AnimatePresence>
-
-                                    {sortedTasks.length === 0 && (
-                                        <div className={`text-center py-12 opacity-40 text-sm ${themeMode === 'custom' ? 'text-[var(--text-color)]' : ''}`}>No tasks yet. Stay focused.</div>
-                                    )}
-                                </div>
                             </div>
+
+                            <div className="flex items-center gap-4">
+                                {/* Live Clock */}
+                                <div className="hidden md:flex flex-col items-end mr-2">
+                                    <span className={`text-sm font-bold font-mono leading-none ${themeMode === 'custom' ? 'opacity-90' : 'opacity-80'}`}>
+                                        {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <span className={`text-[10px] uppercase tracking-wider font-bold leading-none mt-1 ${themeMode === 'custom' ? 'opacity-60' : 'opacity-40'}`}>
+                                        {currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                                    </span>
+                                </div>
+
+
+
+                                <AnimatePresence mode="wait">
+                                    {completionToast ? (
+                                        <motion.div key="toast" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
+                                            <Check size={14} /> {completionToast.text}
+                                        </motion.div>
+                                    ) : focusState.taskId ? (
+                                        <motion.button key="timer" onClick={() => setShowTimerSettings(true)} className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${focusState.isRunning ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                                            <div className={`w-2 h-2 rounded-full ${focusState.isRunning ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`} />
+                                            {formatTime(focusState.remaining)}
+                                        </motion.button>
+                                    ) : null}
+                                </AnimatePresence>
+
+                                {activeContext?.isShared && (
+                                    <button onClick={() => setShowShareModal(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Share">
+                                        <Share2 size={20} />
+                                    </button>
+                                )}
+                                <button onClick={() => setShowStats(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><BarChart2 size={20} /></button>
+                            </div>
+                        </header>
+
+                        <div className="flex-1 overflow-y-auto">
+                            {!activeContext ? (
+                                <div className="h-full flex items-center justify-center opacity-50">Select a context</div>
+                            ) : (
+                                <div className="max-w-3xl mx-auto py-8 px-4 md:py-12 md:px-6">
+                                    <div className="mb-10">
+                                        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-6 text-2xl shadow-sm ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)]' : `${activeTheme.bg} ${activeTheme.text}`}`}>{activeContext.emoji}</div>
+                                        <h1 className="text-4xl font-bold tracking-tight mb-2">{activeContext.name}</h1>
+                                    </div>
+
+                                    <div className="mb-8">
+                                        <form onSubmit={handleQuickCreateTask} className="relative group">
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40"><Plus size={20} /></div>
+                                            <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder={`Add a task to ${activeContext.name}...`} className={`w-full h-14 pl-12 pr-16 border rounded-xl shadow-sm text-lg outline-none bg-transparent ${themeMode === 'custom' ? 'border-[var(--border-color)] placeholder-[var(--text-color)]/30' : 'border-slate-200 dark:border-slate-800'}`} />
+                                            <button type="button" onClick={() => { setShowDetailedAdd(true); setDetailedForm(prev => ({ ...prev, text: newTaskText })); setNewTaskText(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 opacity-40 hover:opacity-100"><Maximize2 size={16} /></button>
+                                        </form>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <AnimatePresence>
+                                            {sortedTasks.map((task) => {
+                                                const isFocused = focusState.taskId === task.id;
+                                                const progress = isFocused ? ((focusState.totalDuration - focusState.remaining) / focusState.totalDuration) * 100 : 0;
+                                                const dateInfo = formatDueDate(task.dueDate);
+
+                                                return (
+                                                    <motion.div
+                                                        key={task.id}
+                                                        layout
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{
+                                                            opacity: 1, y: 0,
+                                                            scale: isFocused ? 1.02 : 1,
+                                                            borderColor: isFocused ? (themeMode === 'custom' ? 'var(--accent-color)' : 'currentColor') : 'transparent'
+                                                        }}
+                                                        exit={{ opacity: 0, scale: 0.95 }}
+                                                        className={`group relative flex items-start gap-4 p-4 border rounded-xl ${themeMode === 'custom' ? `bg-[var(--card-bg)] ${isFocused ? 'border-[var(--accent-color)]' : 'border-[var(--border-color)]'}` : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800`}`}
+                                                    >
+                                                        {isFocused && <motion.div className={`absolute inset-0 rounded-xl pointer-events-none ${themeMode === 'custom' ? 'bg-white/5' : 'bg-blue-50 dark:bg-blue-900/10'}`} layoutId="focusHighlight" />}
+
+                                                        <button onClick={() => toggleTask(task)} className={`flex-shrink-0 w-6 h-6 mt-1 rounded-lg border-2 flex items-center justify-center z-10 ${task.isDone ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                            {task.isDone && <Check size={14} strokeWidth={3} />}
+                                                        </button>
+
+                                                        <div
+                                                            className="flex-1 z-10 min-w-0 cursor-pointer"
+                                                            onClick={() => startEditing(task)}
+                                                        >
+                                                            <span className={`text-[15px] font-medium block ${task.isDone ? 'opacity-50 line-through' : ''} ${isFocused ? 'text-xl font-bold' : ''}`}>{task.text}</span>
+                                                            {(dateInfo || task.description) && !task.isDone && (
+                                                                <div className="flex flex-wrap items-center gap-3 mt-1.5 opacity-60 text-xs">
+                                                                    {dateInfo && <div className={`flex items-center gap-1 ${dateInfo.isOverdue ? 'text-red-500' : ''}`}><Calendar size={12} /> {dateInfo.text}</div>}
+                                                                    {task.description && <div className="flex items-center gap-1"><AlignLeft size={12} /> Notes</div>}
+                                                                </div>
+                                                            )}
+                                                            {isFocused && (
+                                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 flex items-center gap-3 text-xs font-medium opacity-60">
+                                                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/5 dark:bg-white/10">
+                                                                        {focusState.phase === 'focus' ? <Brain size={12} /> : <Coffee size={12} />}
+                                                                        <span className="uppercase">{focusState.phase}</span>
+                                                                    </div>
+                                                                    <span>{Math.round(progress)}% done</span>
+                                                                </motion.div>
+                                                            )}
+                                                        </div>
+
+                                                        {!task.isDone && (
+                                                            <div className="flex items-center gap-2 z-10 self-start mt-0.5">
+                                                                <div className="relative">
+                                                                    {isFocused && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><ProgressRing radius={22} stroke={2} progress={progress} /></div>}
+                                                                    <button
+                                                                        onClick={() => toggleTimer(task.id)}
+                                                                        className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${isFocused
+                                                                            ? (themeMode === 'custom'
+                                                                                ? 'bg-[var(--accent-color)] text-[var(--main-bg)]'
+                                                                                : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
+                                                                            : (themeMode === 'custom'
+                                                                                ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-[var(--main-bg)]'
+                                                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900')
+                                                                            }`}
+                                                                    >
+                                                                        {isFocused && focusState.isRunning ? <Pause size={16} /> : <Play size={16} />}
+                                                                    </button>
+                                                                </div>
+
+                                                                <AnimatePresence>
+                                                                    {(isFocused || (!isFocused && !focusState.isRunning)) && (
+                                                                        <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} className="flex items-center gap-1 overflow-hidden">
+                                                                            {isFocused ? (
+                                                                                <>
+                                                                                    <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Enter Zen Mode"><Maximize2 size={16} /></button>
+                                                                                    <button onClick={stopTimer} className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg"><Square size={16} /></button>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Focus on this task"><Maximize2 size={16} /></button>
+                                                                                    <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
+                                                                                </>
+                                                                            )}
+                                                                            <button
+                                                                                onClick={() => setShowTimerSettings(true)}
+                                                                                className={`p-2 rounded-lg transition-colors ${Object.values(soundMixer || {}).some(v => v > 0)
+                                                                                    ? 'opacity-100 text-blue-500'
+                                                                                    : 'opacity-40 hover:opacity-100'
+                                                                                    }`}
+                                                                                title={Object.values(soundMixer || {}).some(v => v > 0) ? "Sound ON" : "Sound OFF"}
+                                                                            >
+                                                                                {Object.values(soundMixer || {}).some(v => v > 0) ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => deleteTask(task.id)}
+                                                                                className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg transition-colors"
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        </motion.div>
+                                                                    )}
+                                                                </AnimatePresence>
+                                                            </div>
+                                                        )}
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </AnimatePresence>
+
+                                        {sortedTasks.length === 0 && (
+                                            <div className={`text-center py-12 opacity-40 text-sm ${themeMode === 'custom' ? 'text-[var(--text-color)]' : ''}`}>No tasks yet. Stay focused.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </main>
+
+                    <AnimatePresence mode="wait">
+                        {showNewContextModal && (
+                            <NewContextModal
+                                key="new-context-modal"
+                                show={showNewContextModal}
+                                onClose={() => setShowNewContextModal(false)}
+                                newContextName={newContextName}
+                                setNewContextName={setNewContextName}
+                                newContextEmoji={newContextEmoji}
+                                setNewContextEmoji={setNewContextEmoji}
+                                newContextTheme={newContextTheme}
+                                setNewContextTheme={setNewContextTheme}
+                                newContextIsShared={newContextIsShared}
+                                setNewContextIsShared={setNewContextIsShared}
+                                onSubmit={handleCreateContext}
+                                themeMode={themeMode}
+                                customTheme={customTheme}
+                            />
                         )}
-                    </div>
-                </main>
 
-                <AnimatePresence mode="wait">
-                    {showNewContextModal && (
-                        <NewContextModal
-                            key="new-context-modal"
-                            show={showNewContextModal}
-                            onClose={() => setShowNewContextModal(false)}
-                            newContextName={newContextName}
-                            setNewContextName={setNewContextName}
-                            newContextEmoji={newContextEmoji}
-                            setNewContextEmoji={setNewContextEmoji}
-                            newContextTheme={newContextTheme}
-                            setNewContextTheme={setNewContextTheme}
-                            newContextIsShared={newContextIsShared}
-                            setNewContextIsShared={setNewContextIsShared}
-                            onSubmit={handleCreateContext}
-                            themeMode={themeMode}
-                            customTheme={customTheme}
-                        />
-                    )}
+                        {showDetailedAdd && (
+                            <DetailedTaskModal
+                                key="detailed-task-modal"
+                                show={showDetailedAdd}
+                                onClose={() => {
+                                    setShowDetailedAdd(false);
+                                    setEditingTask(null);
+                                }}
+                                editingTask={editingTask}
+                                detailedForm={detailedForm}
+                                setDetailedForm={setDetailedForm}
+                                setEditingTask={setEditingTask}
+                                onSubmit={editingTask ? saveTaskEdit : handleDetailedCreateTask}
+                                activeContext={activeContext}
+                                themeMode={themeMode}
+                                customTheme={customTheme}
+                            />
+                        )}
 
-                    {showDetailedAdd && (
-                        <DetailedTaskModal
-                            key="detailed-task-modal"
-                            show={showDetailedAdd}
-                            onClose={() => {
-                                setShowDetailedAdd(false);
-                                setEditingTask(null);
-                            }}
-                            editingTask={editingTask}
-                            detailedForm={detailedForm}
-                            setDetailedForm={setDetailedForm}
-                            setEditingTask={setEditingTask}
-                            onSubmit={editingTask ? saveTaskEdit : handleDetailedCreateTask}
-                            activeContext={activeContext}
-                            themeMode={themeMode}
-                            customTheme={customTheme}
-                        />
-                    )}
+                        {showTimerSettings && (
+                            <SettingsModal
+                                key="settings-modal"
+                                show={showTimerSettings}
+                                onClose={() => setShowTimerSettings(false)}
+                                themeMode={themeMode}
+                                setThemeMode={setThemeMode}
+                                themeSchedule={themeSchedule}
+                                setThemeSchedule={setThemeSchedule}
+                                customTheme={customTheme}
+                                setCustomTheme={setCustomTheme}
+                                soundConfig={soundConfig}
+                                setSoundConfig={setSoundConfig}
+                                soundMixer={soundMixer}
+                                setSoundMixer={setSoundMixer}
+                                customMinutes={customMinutes}
+                                setCustomMinutes={setCustomMinutes}
+                                setTimerSettings={setTimerSettings}
+                                saveSettings={saveSettings}
+                                isPremium={isPremium}
+                                setShowUpgradeModal={setShowUpgradeModal}
+                            />
+                        )}
 
-                    {showTimerSettings && (
-                        <SettingsModal
-                            key="settings-modal"
-                            show={showTimerSettings}
-                            onClose={() => setShowTimerSettings(false)}
-                            themeMode={themeMode}
-                            setThemeMode={setThemeMode}
-                            themeSchedule={themeSchedule}
-                            setThemeSchedule={setThemeSchedule}
-                            customTheme={customTheme}
-                            setCustomTheme={setCustomTheme}
-                            soundConfig={soundConfig}
-                            setSoundConfig={setSoundConfig}
-                            soundMixer={soundMixer}
-                            setSoundMixer={setSoundMixer}
-                            customMinutes={customMinutes}
-                            setCustomMinutes={setCustomMinutes}
-                            setTimerSettings={setTimerSettings}
-                            saveSettings={saveSettings}
-                            isPremium={isPremium}
-                            setShowUpgradeModal={setShowUpgradeModal}
-                        />
-                    )}
+                        {showStats && (
+                            <StatsModal
+                                key="stats-modal"
+                                show={showStats}
+                                onClose={() => setShowStats(false)}
+                                statsData={statsData}
+                                themeMode={themeMode}
+                            />
+                        )}
 
-                    {showStats && (
-                        <StatsModal
-                            key="stats-modal"
-                            show={showStats}
-                            onClose={() => setShowStats(false)}
-                            statsData={statsData}
-                            themeMode={themeMode}
-                        />
-                    )}
+                        {showShareModal && (
+                            <ShareContextModal
+                                key="share-modal"
+                                show={showShareModal}
+                                onClose={() => setShowShareModal(false)}
+                                onInvite={handleInviteUser}
+                                themeMode={themeMode}
+                                customTheme={customTheme}
+                                activeContextName={activeContext?.name}
+                            />
+                        )}
 
-                    {showShareModal && (
-                        <ShareContextModal
-                            key="share-modal"
-                            show={showShareModal}
-                            onClose={() => setShowShareModal(false)}
-                            onInvite={handleInviteUser}
-                            themeMode={themeMode}
-                            customTheme={customTheme}
-                            activeContextName={activeContext?.name}
-                        />
-                    )}
+                        {showCommandPalette && (
+                            <CommandPalette
+                                key="command-palette"
+                                show={showCommandPalette}
+                                onClose={() => setShowCommandPalette(false)}
+                                commandSearch={commandSearch}
+                                setCommandSearch={setCommandSearch}
+                                filteredContexts={filteredContexts}
+                                activeContextId={activeContextId}
+                                setActiveContextId={setActiveContextId}
+                                themeMode={themeMode}
+                            />
+                        )}
 
-                    {showCommandPalette && (
-                        <CommandPalette
-                            key="command-palette"
-                            show={showCommandPalette}
-                            onClose={() => setShowCommandPalette(false)}
-                            commandSearch={commandSearch}
-                            setCommandSearch={setCommandSearch}
-                            filteredContexts={filteredContexts}
-                            activeContextId={activeContextId}
-                            setActiveContextId={setActiveContextId}
-                            themeMode={themeMode}
-                        />
-                    )}
+                        {showShortcutsHelp && (
+                            <ShortcutsHelpModal
+                                key="shortcuts-modal"
+                                show={showShortcutsHelp}
+                                onClose={() => setShowShortcutsHelp(false)}
+                                themeMode={themeMode}
+                            />
+                        )}
 
-                    {showShortcutsHelp && (
-                        <ShortcutsHelpModal
-                            key="shortcuts-modal"
-                            show={showShortcutsHelp}
-                            onClose={() => setShowShortcutsHelp(false)}
-                            themeMode={themeMode}
-                        />
-                    )}
+                        {showUpgradeModal && (
+                            <UpgradeModal
+                                key="upgrade-modal"
+                                show={showUpgradeModal}
+                                onClose={() => setShowUpgradeModal(false)}
+                                onUpgrade={handleToyyibUpgrade}
+                                themeMode={themeMode}
+                            />
+                        )}
 
-                    {showUpgradeModal && (
-                        <UpgradeModal
-                            key="upgrade-modal"
-                            show={showUpgradeModal}
-                            onClose={() => setShowUpgradeModal(false)}
-                            onUpgrade={handleToyyibUpgrade}
-                            themeMode={themeMode}
-                        />
-                    )}
+                        {deleteConfirm.show && (
+                            <ConfirmDialog
+                                key="confirm-dialog"
+                                show={deleteConfirm.show}
+                                onClose={() => setDeleteConfirm({ show: false, ctxId: null, ctxName: '' })}
+                                onConfirm={confirmDeleteContext}
+                                title="Delete Context?"
+                                message={`Are you sure you want to delete "${deleteConfirm.ctxName}"? This action cannot be undone.`}
+                                confirmText="Delete"
+                                themeMode={themeMode}
+                            />
+                        )}
+                    </AnimatePresence>
 
-                    {deleteConfirm.show && (
-                        <ConfirmDialog
-                            key="confirm-dialog"
-                            show={deleteConfirm.show}
-                            onClose={() => setDeleteConfirm({ show: false, ctxId: null, ctxName: '' })}
-                            onConfirm={confirmDeleteContext}
-                            title="Delete Context?"
-                            message={`Are you sure you want to delete "${deleteConfirm.ctxName}"? This action cannot be undone.`}
-                            confirmText="Delete"
-                            themeMode={themeMode}
-                        />
-                    )}
-                </AnimatePresence>
-
-                {/* AI Command Bar - Outside AnimatePresence for layering */}
-                <AICommandBar
-                    show={showAICommandBar}
-                    onClose={() => setShowAICommandBar(false)}
-                    context={buildAIContext({
-                        activeContext,
-                        tasks,
-                        contexts,
-                        focusState,
-                        focusLogs,
-                        user
-                    })}
-                    quickActions={getQuickActions(buildAIContext({
-                        activeContext,
-                        tasks,
-                        contexts,
-                        focusState,
-                        focusLogs,
-                        user
-                    }))}
-                    onSendMessage={async (message) => {
-                        const context = buildAIContext({
+                    {/* AI Command Bar - Outside AnimatePresence for layering */}
+                    <AICommandBar
+                        show={showAICommandBar}
+                        onClose={() => setShowAICommandBar(false)}
+                        context={buildAIContext({
                             activeContext,
                             tasks,
                             contexts,
                             focusState,
                             focusLogs,
                             user
-                        });
-                        return await chatCompletion(message, context);
-                    }}
-                    onExecuteAction={async (action) => {
-                        if (!user || !activeContextId) return;
+                        })}
+                        quickActions={getQuickActions(buildAIContext({
+                            activeContext,
+                            tasks,
+                            contexts,
+                            focusState,
+                            focusLogs,
+                            user
+                        }))}
+                        onSendMessage={async (message) => {
+                            const context = buildAIContext({
+                                activeContext,
+                                tasks,
+                                contexts,
+                                focusState,
+                                focusLogs,
+                                user
+                            });
+                            return await chatCompletion(message, context);
+                        }}
+                        onExecuteAction={async (action) => {
+                            if (!user || !activeContextId) return;
 
-                        try {
-                            const activeCtx = contexts.find(c => c.id === activeContextId);
-                            const collectionPath = activeCtx?.isShared
-                                ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
-                                : `artifacts/${appId}/users/${user.uid}/tasks`;
+                            try {
+                                const activeCtx = contexts.find(c => c.id === activeContextId);
+                                const collectionPath = activeCtx?.isShared
+                                    ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
+                                    : `artifacts/${appId}/users/${user.uid}/tasks`;
 
-                            const tasksRef = collection(db, collectionPath);
+                                const tasksRef = collection(db, collectionPath);
 
-                            if (action.type === 'create_task') {
-                                // Robust parsing for subtasks (handle strings or objects)
-                                const subtasks = (action.data.subtasks || []).map((item, i) => ({
-                                    id: Date.now() + i,
-                                    text: typeof item === 'string' ? item : (item.text || item.title || JSON.stringify(item)),
-                                    isDone: false
-                                }));
+                                if (action.type === 'create_task') {
+                                    // Robust parsing for subtasks (handle strings or objects)
+                                    const subtasks = (action.data.subtasks || []).map((item, i) => ({
+                                        id: Date.now() + i,
+                                        text: typeof item === 'string' ? item : (item.text || item.title || JSON.stringify(item)),
+                                        isDone: false
+                                    }));
 
-                                await addDoc(tasksRef, {
-                                    text: action.data.text,
-                                    description: action.data.description || '',
-                                    subtasks: subtasks,
-                                    contextId: activeContextId,
-                                    isDone: false,
-                                    createdAt: serverTimestamp(),
-                                    dueDate: action.data.dueDate || null
-                                });
-                                setCompletionToast({ text: 'Task created from AI suggestion', id: Date.now() });
-                                setTimeout(() => setCompletionToast(null), 3000);
-                            } else if (action.type === 'break_down' && action.data.subtasks) {
-                                for (const subtask of action.data.subtasks) {
                                     await addDoc(tasksRef, {
-                                        text: subtask,
-                                        description: '',
+                                        text: action.data.text,
+                                        description: action.data.description || '',
+                                        subtasks: subtasks,
                                         contextId: activeContextId,
                                         isDone: false,
-                                        createdAt: serverTimestamp()
+                                        createdAt: serverTimestamp(),
+                                        dueDate: action.data.dueDate || null
                                     });
+                                    setCompletionToast({ text: 'Task created from AI suggestion', id: Date.now() });
+                                    setTimeout(() => setCompletionToast(null), 3000);
+                                } else if (action.type === 'break_down' && action.data.subtasks) {
+                                    for (const subtask of action.data.subtasks) {
+                                        await addDoc(tasksRef, {
+                                            text: subtask,
+                                            description: '',
+                                            contextId: activeContextId,
+                                            isDone: false,
+                                            createdAt: serverTimestamp()
+                                        });
+                                    }
+                                    setCompletionToast({ text: 'Tasks created from breakdown', id: Date.now() });
+                                    setTimeout(() => setCompletionToast(null), 3000);
                                 }
-                                setCompletionToast({ text: 'Tasks created from breakdown', id: Date.now() });
-                                setTimeout(() => setCompletionToast(null), 3000);
+                            } catch (error) {
+                                console.error("AI Action Error:", error);
                             }
-                        } catch (error) {
-                            console.error("AI Action Error:", error);
-                        }
-                    }}
-                    themeMode={themeMode}
-                    customTheme={customTheme}
-                />
+                        }}
+                        themeMode={themeMode}
+                        customTheme={customTheme}
+                    />
 
-                {/* Zen Mode Overlay */}
-                <AnimatePresence>
-                    {isZenMode && (
-                        <ZenMode
-                            key="zen-mode"
-                            activeTask={tasks.find(t => t.id === focusState.taskId)}
-                            focusState={focusState}
-                            toggleTimer={() => {
-                                if (focusState.taskId) {
-                                    setFocusState(prev => ({ ...prev, isRunning: !prev.isRunning }));
-                                }
-                            }}
-                            stopTimer={() => {
-                                setFocusState(prev => ({ ...prev, isRunning: false }));
-                            }}
-                            onExit={() => setIsZenMode(false)}
-                            onComplete={toggleTask}
-                            onToggleSubtask={toggleSubtask}
-                            soundMixer={soundMixer}
-                            setSoundMixer={setSoundMixer}
-                            isPremium={isPremium}
-                            themeMode={themeMode}
-                            customTheme={customTheme}
-                            formatTime={formatTime}
-                        />
-                    )}
-                </AnimatePresence>
+                    {/* Zen Mode Overlay */}
+                    <AnimatePresence>
+                        {isZenMode && (
+                            <ZenMode
+                                key="zen-mode"
+                                activeTask={tasks.find(t => t.id === focusState.taskId)}
+                                focusState={focusState}
+                                toggleTimer={() => {
+                                    if (focusState.taskId) {
+                                        setFocusState(prev => ({ ...prev, isRunning: !prev.isRunning }));
+                                    }
+                                }}
+                                stopTimer={() => {
+                                    setFocusState(prev => ({ ...prev, isRunning: false }));
+                                }}
+                                onExit={() => setIsZenMode(false)}
+                                onComplete={toggleTask}
+                                onToggleSubtask={toggleSubtask}
+                                soundMixer={soundMixer}
+                                setSoundMixer={setSoundMixer}
+                                isPremium={isPremium}
+                                themeMode={themeMode}
+                                customTheme={customTheme}
+                                formatTime={formatTime}
+                            />
+                        )}
+                    </AnimatePresence>
 
             </div >
         </div >
