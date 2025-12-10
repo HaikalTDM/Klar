@@ -9,9 +9,9 @@ export default defineConfig({
         open: true,
         proxy: {
             '/api/deepseek': {
-                target: 'https://api.deepseek.com',
+                target: 'https://api.deepseek.com/chat/completions',
                 changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api\/deepseek/, ''),
+                rewrite: (path) => '',  // Remove the entire path, hitting target directly
                 secure: true
             }
         }
