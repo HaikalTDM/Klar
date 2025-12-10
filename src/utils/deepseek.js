@@ -4,12 +4,13 @@
  */
 
 // Use proxy in development to avoid CORS, direct URL in production
+// Use proxy in development to avoid CORS, direct URL in production
 const DEEPSEEK_API_URL = import.meta.env.DEV
     ? '/api/deepseek/chat/completions'
     : 'https://api.deepseek.com/chat/completions';
 
-// API Key from environment variable (set in .env.local)
-const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
+// API Key - tries env var first, falls back to provided key
+const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || 'sk-f3b9c1b3ed2541b294b72097f4dc1b18';
 
 /**
  * System prompt that makes AI respond with structured, actionable outputs
