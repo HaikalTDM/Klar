@@ -1099,434 +1099,435 @@ export default function KlarApp() {
                                     </div>
                                 </div>
                             </motion.aside>
+                        </>
                     )}
-                        </AnimatePresence>
+                </AnimatePresence>
 
-                    <main className="flex-1 flex flex-col h-full overflow-hidden relative transition-colors w-full">
-                        <header className={`h-16 flex items-center justify-between px-4 md:px-8 border-b flex-shrink-0 ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-100 dark:border-slate-900'}`}>
-                            <div className="flex items-center gap-4">
-                                <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 opacity-60 hover:opacity-100 rounded-lg"><LayoutGrid size={18} /></button>
-                                {activeContext && <span className={`font-medium flex items-center gap-2 ${themeMode === 'custom' ? 'text-[var(--accent-color)]' : ''}`}>{activeContext.emoji} {activeContext.name}</span>}
-                                {/* Toggle Zen Mode Button */}
-                                <button
-                                    onClick={() => setIsZenMode(true)}
-                                    className={`ml-4 p-2 rounded-lg transition-all opacity-50 hover:opacity-100 ${isZenMode ? 'bg-[var(--accent-color)] text-[var(--bg-color)] opacity-100' : ''}`}
-                                    title="Enter Zen Mode"
-                                >
-                                    <Maximize2 size={18} />
-                                </button>
+                <main className="flex-1 flex flex-col h-full overflow-hidden relative transition-colors w-full">
+                    <header className={`h-16 flex items-center justify-between px-4 md:px-8 border-b flex-shrink-0 ${themeMode === 'custom' ? 'border-[var(--border-color)]' : 'border-slate-100 dark:border-slate-900'}`}>
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 opacity-60 hover:opacity-100 rounded-lg"><LayoutGrid size={18} /></button>
+                            {activeContext && <span className={`font-medium flex items-center gap-2 ${themeMode === 'custom' ? 'text-[var(--accent-color)]' : ''}`}>{activeContext.emoji} {activeContext.name}</span>}
+                            {/* Toggle Zen Mode Button */}
+                            <button
+                                onClick={() => setIsZenMode(true)}
+                                className={`ml-4 p-2 rounded-lg transition-all opacity-50 hover:opacity-100 ${isZenMode ? 'bg-[var(--accent-color)] text-[var(--bg-color)] opacity-100' : ''}`}
+                                title="Enter Zen Mode"
+                            >
+                                <Maximize2 size={18} />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Live Clock */}
+                            <div className="hidden md:flex flex-col items-end mr-2">
+                                <span className={`text-sm font-bold font-mono leading-none ${themeMode === 'custom' ? 'opacity-90' : 'opacity-80'}`}>
+                                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <span className={`text-[10px] uppercase tracking-wider font-bold leading-none mt-1 ${themeMode === 'custom' ? 'opacity-60' : 'opacity-40'}`}>
+                                    {currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+                                </span>
                             </div>
 
-                            <div className="flex items-center gap-4">
-                                {/* Live Clock */}
-                                <div className="hidden md:flex flex-col items-end mr-2">
-                                    <span className={`text-sm font-bold font-mono leading-none ${themeMode === 'custom' ? 'opacity-90' : 'opacity-80'}`}>
-                                        {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                    <span className={`text-[10px] uppercase tracking-wider font-bold leading-none mt-1 ${themeMode === 'custom' ? 'opacity-60' : 'opacity-40'}`}>
-                                        {currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                                    </span>
+
+
+                            <AnimatePresence mode="wait">
+                                {completionToast ? (
+                                    <motion.div key="toast" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
+                                        <Check size={14} /> {completionToast.text}
+                                    </motion.div>
+                                ) : focusState.taskId ? (
+                                    <motion.button key="timer" onClick={() => setShowTimerSettings(true)} className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${focusState.isRunning ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                                        <div className={`w-2 h-2 rounded-full ${focusState.isRunning ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`} />
+                                        {formatTime(focusState.remaining)}
+                                    </motion.button>
+                                ) : null}
+                            </AnimatePresence>
+
+                            {activeContext?.isShared && (
+                                <button onClick={() => setShowShareModal(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Share">
+                                    <Share2 size={20} />
+                                </button>
+                            )}
+                            <button onClick={() => setShowStats(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><BarChart2 size={20} /></button>
+                        </div>
+                    </header>
+
+                    <div className="flex-1 overflow-y-auto">
+                        {!activeContext ? (
+                            <div className="h-full flex items-center justify-center opacity-50">Select a context</div>
+                        ) : (
+                            <div className="max-w-3xl mx-auto py-8 px-4 md:py-12 md:px-6">
+                                <div className="mb-10">
+                                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-6 text-2xl shadow-sm ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)]' : `${activeTheme.bg} ${activeTheme.text}`}`}>{activeContext.emoji}</div>
+                                    <h1 className="text-4xl font-bold tracking-tight mb-2">{activeContext.name}</h1>
                                 </div>
 
+                                <div className="mb-8">
+                                    <form onSubmit={handleQuickCreateTask} className="relative group">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40"><Plus size={20} /></div>
+                                        <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder={`Add a task to ${activeContext.name}...`} className={`w-full h-14 pl-12 pr-16 border rounded-xl shadow-sm text-lg outline-none bg-transparent ${themeMode === 'custom' ? 'border-[var(--border-color)] placeholder-[var(--text-color)]/30' : 'border-slate-200 dark:border-slate-800'}`} />
+                                        <button type="button" onClick={() => { setShowDetailedAdd(true); setDetailedForm(prev => ({ ...prev, text: newTaskText })); setNewTaskText(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 opacity-40 hover:opacity-100"><Maximize2 size={16} /></button>
+                                    </form>
+                                </div>
 
+                                <div className="space-y-4">
+                                    <AnimatePresence>
+                                        {sortedTasks.map((task) => {
+                                            const isFocused = focusState.taskId === task.id;
+                                            const progress = isFocused ? ((focusState.totalDuration - focusState.remaining) / focusState.totalDuration) * 100 : 0;
+                                            const dateInfo = formatDueDate(task.dueDate);
 
-                                <AnimatePresence mode="wait">
-                                    {completionToast ? (
-                                        <motion.div key="toast" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
-                                            <Check size={14} /> {completionToast.text}
-                                        </motion.div>
-                                    ) : focusState.taskId ? (
-                                        <motion.button key="timer" onClick={() => setShowTimerSettings(true)} className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${focusState.isRunning ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'}`}>
-                                            <div className={`w-2 h-2 rounded-full ${focusState.isRunning ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`} />
-                                            {formatTime(focusState.remaining)}
-                                        </motion.button>
-                                    ) : null}
-                                </AnimatePresence>
+                                            return (
+                                                <motion.div
+                                                    key={task.id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{
+                                                        opacity: 1, y: 0,
+                                                        scale: isFocused ? 1.02 : 1,
+                                                        borderColor: isFocused ? (themeMode === 'custom' ? 'var(--accent-color)' : 'currentColor') : 'transparent'
+                                                    }}
+                                                    exit={{ opacity: 0, scale: 0.95 }}
+                                                    className={`group relative flex items-start gap-4 p-4 border rounded-xl ${themeMode === 'custom' ? `bg-[var(--card-bg)] ${isFocused ? 'border-[var(--accent-color)]' : 'border-[var(--border-color)]'}` : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800`}`}
+                                                >
+                                                    {isFocused && <motion.div className={`absolute inset-0 rounded-xl pointer-events-none ${themeMode === 'custom' ? 'bg-white/5' : 'bg-blue-50 dark:bg-blue-900/10'}`} layoutId="focusHighlight" />}
 
-                                {activeContext?.isShared && (
-                                    <button onClick={() => setShowShareModal(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Share">
-                                        <Share2 size={20} />
-                                    </button>
-                                )}
-                                <button onClick={() => setShowStats(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><BarChart2 size={20} /></button>
-                            </div>
-                        </header>
+                                                    <button onClick={() => toggleTask(task)} className={`flex-shrink-0 w-6 h-6 mt-1 rounded-lg border-2 flex items-center justify-center z-10 ${task.isDone ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                        {task.isDone && <Check size={14} strokeWidth={3} />}
+                                                    </button>
 
-                        <div className="flex-1 overflow-y-auto">
-                            {!activeContext ? (
-                                <div className="h-full flex items-center justify-center opacity-50">Select a context</div>
-                            ) : (
-                                <div className="max-w-3xl mx-auto py-8 px-4 md:py-12 md:px-6">
-                                    <div className="mb-10">
-                                        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-6 text-2xl shadow-sm ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)]' : `${activeTheme.bg} ${activeTheme.text}`}`}>{activeContext.emoji}</div>
-                                        <h1 className="text-4xl font-bold tracking-tight mb-2">{activeContext.name}</h1>
-                                    </div>
-
-                                    <div className="mb-8">
-                                        <form onSubmit={handleQuickCreateTask} className="relative group">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40"><Plus size={20} /></div>
-                                            <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder={`Add a task to ${activeContext.name}...`} className={`w-full h-14 pl-12 pr-16 border rounded-xl shadow-sm text-lg outline-none bg-transparent ${themeMode === 'custom' ? 'border-[var(--border-color)] placeholder-[var(--text-color)]/30' : 'border-slate-200 dark:border-slate-800'}`} />
-                                            <button type="button" onClick={() => { setShowDetailedAdd(true); setDetailedForm(prev => ({ ...prev, text: newTaskText })); setNewTaskText(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 opacity-40 hover:opacity-100"><Maximize2 size={16} /></button>
-                                        </form>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <AnimatePresence>
-                                            {sortedTasks.map((task) => {
-                                                const isFocused = focusState.taskId === task.id;
-                                                const progress = isFocused ? ((focusState.totalDuration - focusState.remaining) / focusState.totalDuration) * 100 : 0;
-                                                const dateInfo = formatDueDate(task.dueDate);
-
-                                                return (
-                                                    <motion.div
-                                                        key={task.id}
-                                                        layout
-                                                        initial={{ opacity: 0, y: 10 }}
-                                                        animate={{
-                                                            opacity: 1, y: 0,
-                                                            scale: isFocused ? 1.02 : 1,
-                                                            borderColor: isFocused ? (themeMode === 'custom' ? 'var(--accent-color)' : 'currentColor') : 'transparent'
-                                                        }}
-                                                        exit={{ opacity: 0, scale: 0.95 }}
-                                                        className={`group relative flex items-start gap-4 p-4 border rounded-xl ${themeMode === 'custom' ? `bg-[var(--card-bg)] ${isFocused ? 'border-[var(--accent-color)]' : 'border-[var(--border-color)]'}` : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800`}`}
+                                                    <div
+                                                        className="flex-1 z-10 min-w-0 cursor-pointer"
+                                                        onClick={() => startEditing(task)}
                                                     >
-                                                        {isFocused && <motion.div className={`absolute inset-0 rounded-xl pointer-events-none ${themeMode === 'custom' ? 'bg-white/5' : 'bg-blue-50 dark:bg-blue-900/10'}`} layoutId="focusHighlight" />}
-
-                                                        <button onClick={() => toggleTask(task)} className={`flex-shrink-0 w-6 h-6 mt-1 rounded-lg border-2 flex items-center justify-center z-10 ${task.isDone ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                            {task.isDone && <Check size={14} strokeWidth={3} />}
-                                                        </button>
-
-                                                        <div
-                                                            className="flex-1 z-10 min-w-0 cursor-pointer"
-                                                            onClick={() => startEditing(task)}
-                                                        >
-                                                            <span className={`text-[15px] font-medium block ${task.isDone ? 'opacity-50 line-through' : ''} ${isFocused ? 'text-xl font-bold' : ''}`}>{task.text}</span>
-                                                            {(dateInfo || task.description) && !task.isDone && (
-                                                                <div className="flex flex-wrap items-center gap-3 mt-1.5 opacity-60 text-xs">
-                                                                    {dateInfo && <div className={`flex items-center gap-1 ${dateInfo.isOverdue ? 'text-red-500' : ''}`}><Calendar size={12} /> {dateInfo.text}</div>}
-                                                                    {task.description && <div className="flex items-center gap-1"><AlignLeft size={12} /> Notes</div>}
-                                                                </div>
-                                                            )}
-                                                            {isFocused && (
-                                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 flex items-center gap-3 text-xs font-medium opacity-60">
-                                                                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/5 dark:bg-white/10">
-                                                                        {focusState.phase === 'focus' ? <Brain size={12} /> : <Coffee size={12} />}
-                                                                        <span className="uppercase">{focusState.phase}</span>
-                                                                    </div>
-                                                                    <span>{Math.round(progress)}% done</span>
-                                                                </motion.div>
-                                                            )}
-                                                        </div>
-
-                                                        {!task.isDone && (
-                                                            <div className="flex items-center gap-2 z-10 self-start mt-0.5">
-                                                                <div className="relative">
-                                                                    {isFocused && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><ProgressRing radius={22} stroke={2} progress={progress} /></div>}
-                                                                    <button
-                                                                        onClick={() => toggleTimer(task.id)}
-                                                                        className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${isFocused
-                                                                            ? (themeMode === 'custom'
-                                                                                ? 'bg-[var(--accent-color)] text-[var(--main-bg)]'
-                                                                                : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
-                                                                            : (themeMode === 'custom'
-                                                                                ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-[var(--main-bg)]'
-                                                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900')
-                                                                            }`}
-                                                                    >
-                                                                        {isFocused && focusState.isRunning ? <Pause size={16} /> : <Play size={16} />}
-                                                                    </button>
-                                                                </div>
-
-                                                                <AnimatePresence>
-                                                                    {(isFocused || (!isFocused && !focusState.isRunning)) && (
-                                                                        <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} className="flex items-center gap-1 overflow-hidden">
-                                                                            {isFocused ? (
-                                                                                <>
-                                                                                    <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Enter Zen Mode"><Maximize2 size={16} /></button>
-                                                                                    <button onClick={stopTimer} className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg"><Square size={16} /></button>
-                                                                                </>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Focus on this task"><Maximize2 size={16} /></button>
-                                                                                    <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
-                                                                                </>
-                                                                            )}
-                                                                            <button
-                                                                                onClick={() => setShowTimerSettings(true)}
-                                                                                className={`p-2 rounded-lg transition-colors ${Object.values(soundMixer || {}).some(v => v > 0)
-                                                                                    ? 'opacity-100 text-blue-500'
-                                                                                    : 'opacity-40 hover:opacity-100'
-                                                                                    }`}
-                                                                                title={Object.values(soundMixer || {}).some(v => v > 0) ? "Sound ON" : "Sound OFF"}
-                                                                            >
-                                                                                {Object.values(soundMixer || {}).some(v => v > 0) ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => deleteTask(task.id)}
-                                                                                className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg transition-colors"
-                                                                            >
-                                                                                <Trash2 size={16} />
-                                                                            </button>
-                                                                        </motion.div>
-                                                                    )}
-                                                                </AnimatePresence>
+                                                        <span className={`text-[15px] font-medium block ${task.isDone ? 'opacity-50 line-through' : ''} ${isFocused ? 'text-xl font-bold' : ''}`}>{task.text}</span>
+                                                        {(dateInfo || task.description) && !task.isDone && (
+                                                            <div className="flex flex-wrap items-center gap-3 mt-1.5 opacity-60 text-xs">
+                                                                {dateInfo && <div className={`flex items-center gap-1 ${dateInfo.isOverdue ? 'text-red-500' : ''}`}><Calendar size={12} /> {dateInfo.text}</div>}
+                                                                {task.description && <div className="flex items-center gap-1"><AlignLeft size={12} /> Notes</div>}
                                                             </div>
                                                         )}
-                                                    </motion.div>
-                                                );
-                                            })}
-                                        </AnimatePresence>
+                                                        {isFocused && (
+                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 flex items-center gap-3 text-xs font-medium opacity-60">
+                                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/5 dark:bg-white/10">
+                                                                    {focusState.phase === 'focus' ? <Brain size={12} /> : <Coffee size={12} />}
+                                                                    <span className="uppercase">{focusState.phase}</span>
+                                                                </div>
+                                                                <span>{Math.round(progress)}% done</span>
+                                                            </motion.div>
+                                                        )}
+                                                    </div>
 
-                                        {sortedTasks.length === 0 && (
-                                            <div className={`text-center py-12 opacity-40 text-sm ${themeMode === 'custom' ? 'text-[var(--text-color)]' : ''}`}>No tasks yet. Stay focused.</div>
-                                        )}
-                                    </div>
+                                                    {!task.isDone && (
+                                                        <div className="flex items-center gap-2 z-10 self-start mt-0.5">
+                                                            <div className="relative">
+                                                                {isFocused && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><ProgressRing radius={22} stroke={2} progress={progress} /></div>}
+                                                                <button
+                                                                    onClick={() => toggleTimer(task.id)}
+                                                                    className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${isFocused
+                                                                        ? (themeMode === 'custom'
+                                                                            ? 'bg-[var(--accent-color)] text-[var(--main-bg)]'
+                                                                            : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
+                                                                        : (themeMode === 'custom'
+                                                                            ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-[var(--main-bg)]'
+                                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900')
+                                                                        }`}
+                                                                >
+                                                                    {isFocused && focusState.isRunning ? <Pause size={16} /> : <Play size={16} />}
+                                                                </button>
+                                                            </div>
+
+                                                            <AnimatePresence>
+                                                                {(isFocused || (!isFocused && !focusState.isRunning)) && (
+                                                                    <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} className="flex items-center gap-1 overflow-hidden">
+                                                                        {isFocused ? (
+                                                                            <>
+                                                                                <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Enter Zen Mode"><Maximize2 size={16} /></button>
+                                                                                <button onClick={stopTimer} className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg"><Square size={16} /></button>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Focus on this task"><Maximize2 size={16} /></button>
+                                                                                <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
+                                                                            </>
+                                                                        )}
+                                                                        <button
+                                                                            onClick={() => setShowTimerSettings(true)}
+                                                                            className={`p-2 rounded-lg transition-colors ${Object.values(soundMixer || {}).some(v => v > 0)
+                                                                                ? 'opacity-100 text-blue-500'
+                                                                                : 'opacity-40 hover:opacity-100'
+                                                                                }`}
+                                                                            title={Object.values(soundMixer || {}).some(v => v > 0) ? "Sound ON" : "Sound OFF"}
+                                                                        >
+                                                                            {Object.values(soundMixer || {}).some(v => v > 0) ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => deleteTask(task.id)}
+                                                                            className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg transition-colors"
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </div>
+                                                    )}
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </AnimatePresence>
+
+                                    {sortedTasks.length === 0 && (
+                                        <div className={`text-center py-12 opacity-40 text-sm ${themeMode === 'custom' ? 'text-[var(--text-color)]' : ''}`}>No tasks yet. Stay focused.</div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    </main>
-
-                    <AnimatePresence mode="wait">
-                        {showNewContextModal && (
-                            <NewContextModal
-                                key="new-context-modal"
-                                show={showNewContextModal}
-                                onClose={() => setShowNewContextModal(false)}
-                                newContextName={newContextName}
-                                setNewContextName={setNewContextName}
-                                newContextEmoji={newContextEmoji}
-                                setNewContextEmoji={setNewContextEmoji}
-                                newContextTheme={newContextTheme}
-                                setNewContextTheme={setNewContextTheme}
-                                newContextIsShared={newContextIsShared}
-                                setNewContextIsShared={setNewContextIsShared}
-                                onSubmit={handleCreateContext}
-                                themeMode={themeMode}
-                                customTheme={customTheme}
-                            />
+                            </div>
                         )}
+                    </div>
+                </main>
 
-                        {showDetailedAdd && (
-                            <DetailedTaskModal
-                                key="detailed-task-modal"
-                                show={showDetailedAdd}
-                                onClose={() => {
-                                    setShowDetailedAdd(false);
-                                    setEditingTask(null);
-                                }}
-                                editingTask={editingTask}
-                                detailedForm={detailedForm}
-                                setDetailedForm={setDetailedForm}
-                                setEditingTask={setEditingTask}
-                                onSubmit={editingTask ? saveTaskEdit : handleDetailedCreateTask}
-                                activeContext={activeContext}
-                                themeMode={themeMode}
-                                customTheme={customTheme}
-                            />
-                        )}
+                <AnimatePresence mode="wait">
+                    {showNewContextModal && (
+                        <NewContextModal
+                            key="new-context-modal"
+                            show={showNewContextModal}
+                            onClose={() => setShowNewContextModal(false)}
+                            newContextName={newContextName}
+                            setNewContextName={setNewContextName}
+                            newContextEmoji={newContextEmoji}
+                            setNewContextEmoji={setNewContextEmoji}
+                            newContextTheme={newContextTheme}
+                            setNewContextTheme={setNewContextTheme}
+                            newContextIsShared={newContextIsShared}
+                            setNewContextIsShared={setNewContextIsShared}
+                            onSubmit={handleCreateContext}
+                            themeMode={themeMode}
+                            customTheme={customTheme}
+                        />
+                    )}
 
-                        {showTimerSettings && (
-                            <SettingsModal
-                                key="settings-modal"
-                                show={showTimerSettings}
-                                onClose={() => setShowTimerSettings(false)}
-                                themeMode={themeMode}
-                                setThemeMode={setThemeMode}
-                                themeSchedule={themeSchedule}
-                                setThemeSchedule={setThemeSchedule}
-                                customTheme={customTheme}
-                                setCustomTheme={setCustomTheme}
-                                soundConfig={soundConfig}
-                                setSoundConfig={setSoundConfig}
-                                soundMixer={soundMixer}
-                                setSoundMixer={setSoundMixer}
-                                customMinutes={customMinutes}
-                                setCustomMinutes={setCustomMinutes}
-                                setTimerSettings={setTimerSettings}
-                                saveSettings={saveSettings}
-                                isPremium={isPremium}
-                                setShowUpgradeModal={setShowUpgradeModal}
-                            />
-                        )}
+                    {showDetailedAdd && (
+                        <DetailedTaskModal
+                            key="detailed-task-modal"
+                            show={showDetailedAdd}
+                            onClose={() => {
+                                setShowDetailedAdd(false);
+                                setEditingTask(null);
+                            }}
+                            editingTask={editingTask}
+                            detailedForm={detailedForm}
+                            setDetailedForm={setDetailedForm}
+                            setEditingTask={setEditingTask}
+                            onSubmit={editingTask ? saveTaskEdit : handleDetailedCreateTask}
+                            activeContext={activeContext}
+                            themeMode={themeMode}
+                            customTheme={customTheme}
+                        />
+                    )}
 
-                        {showStats && (
-                            <StatsModal
-                                key="stats-modal"
-                                show={showStats}
-                                onClose={() => setShowStats(false)}
-                                statsData={statsData}
-                                themeMode={themeMode}
-                            />
-                        )}
+                    {showTimerSettings && (
+                        <SettingsModal
+                            key="settings-modal"
+                            show={showTimerSettings}
+                            onClose={() => setShowTimerSettings(false)}
+                            themeMode={themeMode}
+                            setThemeMode={setThemeMode}
+                            themeSchedule={themeSchedule}
+                            setThemeSchedule={setThemeSchedule}
+                            customTheme={customTheme}
+                            setCustomTheme={setCustomTheme}
+                            soundConfig={soundConfig}
+                            setSoundConfig={setSoundConfig}
+                            soundMixer={soundMixer}
+                            setSoundMixer={setSoundMixer}
+                            customMinutes={customMinutes}
+                            setCustomMinutes={setCustomMinutes}
+                            setTimerSettings={setTimerSettings}
+                            saveSettings={saveSettings}
+                            isPremium={isPremium}
+                            setShowUpgradeModal={setShowUpgradeModal}
+                        />
+                    )}
 
-                        {showShareModal && (
-                            <ShareContextModal
-                                key="share-modal"
-                                show={showShareModal}
-                                onClose={() => setShowShareModal(false)}
-                                onInvite={handleInviteUser}
-                                themeMode={themeMode}
-                                customTheme={customTheme}
-                                activeContextName={activeContext?.name}
-                            />
-                        )}
+                    {showStats && (
+                        <StatsModal
+                            key="stats-modal"
+                            show={showStats}
+                            onClose={() => setShowStats(false)}
+                            statsData={statsData}
+                            themeMode={themeMode}
+                        />
+                    )}
 
-                        {showCommandPalette && (
-                            <CommandPalette
-                                key="command-palette"
-                                show={showCommandPalette}
-                                onClose={() => setShowCommandPalette(false)}
-                                commandSearch={commandSearch}
-                                setCommandSearch={setCommandSearch}
-                                filteredContexts={filteredContexts}
-                                activeContextId={activeContextId}
-                                setActiveContextId={setActiveContextId}
-                                themeMode={themeMode}
-                            />
-                        )}
+                    {showShareModal && (
+                        <ShareContextModal
+                            key="share-modal"
+                            show={showShareModal}
+                            onClose={() => setShowShareModal(false)}
+                            onInvite={handleInviteUser}
+                            themeMode={themeMode}
+                            customTheme={customTheme}
+                            activeContextName={activeContext?.name}
+                        />
+                    )}
 
-                        {showShortcutsHelp && (
-                            <ShortcutsHelpModal
-                                key="shortcuts-modal"
-                                show={showShortcutsHelp}
-                                onClose={() => setShowShortcutsHelp(false)}
-                                themeMode={themeMode}
-                            />
-                        )}
+                    {showCommandPalette && (
+                        <CommandPalette
+                            key="command-palette"
+                            show={showCommandPalette}
+                            onClose={() => setShowCommandPalette(false)}
+                            commandSearch={commandSearch}
+                            setCommandSearch={setCommandSearch}
+                            filteredContexts={filteredContexts}
+                            activeContextId={activeContextId}
+                            setActiveContextId={setActiveContextId}
+                            themeMode={themeMode}
+                        />
+                    )}
 
-                        {showUpgradeModal && (
-                            <UpgradeModal
-                                key="upgrade-modal"
-                                show={showUpgradeModal}
-                                onClose={() => setShowUpgradeModal(false)}
-                                onUpgrade={handleToyyibUpgrade}
-                                themeMode={themeMode}
-                            />
-                        )}
+                    {showShortcutsHelp && (
+                        <ShortcutsHelpModal
+                            key="shortcuts-modal"
+                            show={showShortcutsHelp}
+                            onClose={() => setShowShortcutsHelp(false)}
+                            themeMode={themeMode}
+                        />
+                    )}
 
-                        {deleteConfirm.show && (
-                            <ConfirmDialog
-                                key="confirm-dialog"
-                                show={deleteConfirm.show}
-                                onClose={() => setDeleteConfirm({ show: false, ctxId: null, ctxName: '' })}
-                                onConfirm={confirmDeleteContext}
-                                title="Delete Context?"
-                                message={`Are you sure you want to delete "${deleteConfirm.ctxName}"? This action cannot be undone.`}
-                                confirmText="Delete"
-                                themeMode={themeMode}
-                            />
-                        )}
-                    </AnimatePresence>
+                    {showUpgradeModal && (
+                        <UpgradeModal
+                            key="upgrade-modal"
+                            show={showUpgradeModal}
+                            onClose={() => setShowUpgradeModal(false)}
+                            onUpgrade={handleToyyibUpgrade}
+                            themeMode={themeMode}
+                        />
+                    )}
 
-                    {/* AI Command Bar - Outside AnimatePresence for layering */}
-                    <AICommandBar
-                        show={showAICommandBar}
-                        onClose={() => setShowAICommandBar(false)}
-                        context={buildAIContext({
+                    {deleteConfirm.show && (
+                        <ConfirmDialog
+                            key="confirm-dialog"
+                            show={deleteConfirm.show}
+                            onClose={() => setDeleteConfirm({ show: false, ctxId: null, ctxName: '' })}
+                            onConfirm={confirmDeleteContext}
+                            title="Delete Context?"
+                            message={`Are you sure you want to delete "${deleteConfirm.ctxName}"? This action cannot be undone.`}
+                            confirmText="Delete"
+                            themeMode={themeMode}
+                        />
+                    )}
+                </AnimatePresence>
+
+                {/* AI Command Bar - Outside AnimatePresence for layering */}
+                <AICommandBar
+                    show={showAICommandBar}
+                    onClose={() => setShowAICommandBar(false)}
+                    context={buildAIContext({
+                        activeContext,
+                        tasks,
+                        contexts,
+                        focusState,
+                        focusLogs,
+                        user
+                    })}
+                    quickActions={getQuickActions(buildAIContext({
+                        activeContext,
+                        tasks,
+                        contexts,
+                        focusState,
+                        focusLogs,
+                        user
+                    }))}
+                    onSendMessage={async (message) => {
+                        const context = buildAIContext({
                             activeContext,
                             tasks,
                             contexts,
                             focusState,
                             focusLogs,
                             user
-                        })}
-                        quickActions={getQuickActions(buildAIContext({
-                            activeContext,
-                            tasks,
-                            contexts,
-                            focusState,
-                            focusLogs,
-                            user
-                        }))}
-                        onSendMessage={async (message) => {
-                            const context = buildAIContext({
-                                activeContext,
-                                tasks,
-                                contexts,
-                                focusState,
-                                focusLogs,
-                                user
-                            });
-                            return await chatCompletion(message, context);
-                        }}
-                        onExecuteAction={async (action) => {
-                            if (!user || !activeContextId) return;
+                        });
+                        return await chatCompletion(message, context);
+                    }}
+                    onExecuteAction={async (action) => {
+                        if (!user || !activeContextId) return;
 
-                            try {
-                                const activeCtx = contexts.find(c => c.id === activeContextId);
-                                const collectionPath = activeCtx?.isShared
-                                    ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
-                                    : `artifacts/${appId}/users/${user.uid}/tasks`;
+                        try {
+                            const activeCtx = contexts.find(c => c.id === activeContextId);
+                            const collectionPath = activeCtx?.isShared
+                                ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
+                                : `artifacts/${appId}/users/${user.uid}/tasks`;
 
-                                const tasksRef = collection(db, collectionPath);
+                            const tasksRef = collection(db, collectionPath);
 
-                                if (action.type === 'create_task') {
-                                    // Robust parsing for subtasks (handle strings or objects)
-                                    const subtasks = (action.data.subtasks || []).map((item, i) => ({
-                                        id: Date.now() + i,
-                                        text: typeof item === 'string' ? item : (item.text || item.title || JSON.stringify(item)),
-                                        isDone: false
-                                    }));
+                            if (action.type === 'create_task') {
+                                // Robust parsing for subtasks (handle strings or objects)
+                                const subtasks = (action.data.subtasks || []).map((item, i) => ({
+                                    id: Date.now() + i,
+                                    text: typeof item === 'string' ? item : (item.text || item.title || JSON.stringify(item)),
+                                    isDone: false
+                                }));
 
+                                await addDoc(tasksRef, {
+                                    text: action.data.text,
+                                    description: action.data.description || '',
+                                    subtasks: subtasks,
+                                    contextId: activeContextId,
+                                    isDone: false,
+                                    createdAt: serverTimestamp(),
+                                    dueDate: action.data.dueDate || null
+                                });
+                                setCompletionToast({ text: 'Task created from AI suggestion', id: Date.now() });
+                                setTimeout(() => setCompletionToast(null), 3000);
+                            } else if (action.type === 'break_down' && action.data.subtasks) {
+                                for (const subtask of action.data.subtasks) {
                                     await addDoc(tasksRef, {
-                                        text: action.data.text,
-                                        description: action.data.description || '',
-                                        subtasks: subtasks,
+                                        text: subtask,
+                                        description: '',
                                         contextId: activeContextId,
                                         isDone: false,
-                                        createdAt: serverTimestamp(),
-                                        dueDate: action.data.dueDate || null
+                                        createdAt: serverTimestamp()
                                     });
-                                    setCompletionToast({ text: 'Task created from AI suggestion', id: Date.now() });
-                                    setTimeout(() => setCompletionToast(null), 3000);
-                                } else if (action.type === 'break_down' && action.data.subtasks) {
-                                    for (const subtask of action.data.subtasks) {
-                                        await addDoc(tasksRef, {
-                                            text: subtask,
-                                            description: '',
-                                            contextId: activeContextId,
-                                            isDone: false,
-                                            createdAt: serverTimestamp()
-                                        });
-                                    }
-                                    setCompletionToast({ text: 'Tasks created from breakdown', id: Date.now() });
-                                    setTimeout(() => setCompletionToast(null), 3000);
                                 }
-                            } catch (error) {
-                                console.error("AI Action Error:", error);
+                                setCompletionToast({ text: 'Tasks created from breakdown', id: Date.now() });
+                                setTimeout(() => setCompletionToast(null), 3000);
                             }
-                        }}
-                        themeMode={themeMode}
-                        customTheme={customTheme}
-                    />
+                        } catch (error) {
+                            console.error("AI Action Error:", error);
+                        }
+                    }}
+                    themeMode={themeMode}
+                    customTheme={customTheme}
+                />
 
-                    {/* Zen Mode Overlay */}
-                    <AnimatePresence>
-                        {isZenMode && (
-                            <ZenMode
-                                key="zen-mode"
-                                activeTask={tasks.find(t => t.id === focusState.taskId)}
-                                focusState={focusState}
-                                toggleTimer={() => {
-                                    if (focusState.taskId) {
-                                        setFocusState(prev => ({ ...prev, isRunning: !prev.isRunning }));
-                                    }
-                                }}
-                                stopTimer={() => {
-                                    setFocusState(prev => ({ ...prev, isRunning: false }));
-                                }}
-                                onExit={() => setIsZenMode(false)}
-                                onComplete={toggleTask}
-                                onToggleSubtask={toggleSubtask}
-                                soundMixer={soundMixer}
-                                setSoundMixer={setSoundMixer}
-                                isPremium={isPremium}
-                                themeMode={themeMode}
-                                customTheme={customTheme}
-                                formatTime={formatTime}
-                            />
-                        )}
-                    </AnimatePresence>
+                {/* Zen Mode Overlay */}
+                <AnimatePresence>
+                    {isZenMode && (
+                        <ZenMode
+                            key="zen-mode"
+                            activeTask={tasks.find(t => t.id === focusState.taskId)}
+                            focusState={focusState}
+                            toggleTimer={() => {
+                                if (focusState.taskId) {
+                                    setFocusState(prev => ({ ...prev, isRunning: !prev.isRunning }));
+                                }
+                            }}
+                            stopTimer={() => {
+                                setFocusState(prev => ({ ...prev, isRunning: false }));
+                            }}
+                            onExit={() => setIsZenMode(false)}
+                            onComplete={toggleTask}
+                            onToggleSubtask={toggleSubtask}
+                            soundMixer={soundMixer}
+                            setSoundMixer={setSoundMixer}
+                            isPremium={isPremium}
+                            themeMode={themeMode}
+                            customTheme={customTheme}
+                            formatTime={formatTime}
+                        />
+                    )}
+                </AnimatePresence>
 
             </div >
         </div >
