@@ -150,4 +150,45 @@ export function getQuickActions(context) {
     return actions.slice(0, 4); // Limit to 4 quick actions
 }
 
-export default { buildAIContext, getQuickActions };
+/**
+ * Handle conversational AI chat
+ * @param {string} query - User question or command
+ * @param {object} contextData - Raw app data to build context from
+ */
+import { askDeepSeek } from './nlp';
+
+export async function handleAIChat(query, contextData) {
+    const aiContext = buildAIContext(contextData);
+
+    // Simplify context for token efficiency if needed, but context is small for now
+    const contextSummary = {
+        contextName: aiContext.contextName,
+        tasks: aiContext.tasks.map(t => `${t.text} (${t.isDone ? 'Done' : 'Pending'}, ${t.priority || 'medium'})`).join('; '),
+        stats: {
+            overdue: aiContext.overdueTasks.length,
+            upcoming: aiContext.upcomingTasks.length,
+            focusTime: aiContext.focusTimeToday
+        },
+        focus: aiContext.focusState
+    };
+
+    const systemPrompt = `You are Klar AI, a productivity companion.
+You have access to the user's current workspace context:
+${JSON.stringify(contextSummary, null, 2)}
+
+Instructions:
+- Answer the user's query based strictly on this data.
+- Be concise, motivating, and helpful.
+- Use Markdown formatting.
+- If asking for a summary, group tasks logically.
+- If asking for advice, suggest based on overdue/focus status.`;
+
+    const result = await askDeepSeek([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: query }
+    ]);
+
+    return result || "I couldn't generate a response.";
+}
+
+export default { buildAIContext, getQuickActions, handleAIChat };

@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import * as chrono from 'chrono-node';
+import confetti from 'canvas-confetti';
 import {
     Check, Plus, Trash2, X, LayoutGrid, Settings, Command,
     Loader2, Play, Pause, Square, Edit3, Save, Coffee, Brain,
     Calendar, AlignLeft, Volume2, VolumeX, Maximize2,
     BarChart2, Activity, Flame, CheckCircle2, CloudRain, Wind, Waves,
     Repeat, HelpCircle, Search, Keyboard, Moon, Sun, Monitor,
-    Sliders, Palette, RefreshCcw, Wand2, LogOut, User,
-    Share2, Users, UserPlus, Sparkles
+    Sliders, Palette, RefreshCcw, Wand2, LogOut, User, MoveRight,
+    Share2, Users, UserPlus, Sparkles, Gift, Film, ShoppingCart, Tag, Flag, Mic, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,22 +41,33 @@ import {
     ShortcutsHelpModal,
     ShareContextModal,
     ConfirmDialog,
-    UpgradeModal
+    UpgradeModal,
+    CalendarModal
 } from './Modals';
 
 import ZenMode from './ZenMode';
+import Dashboard from './Dashboard';
+import VoiceModal from './VoiceModal';
+import KlarAIModal from './KlarAIModal';
+import { useVoiceInput } from '../utils/voiceInput';
 
 export default function KlarApp() {
     // State
     const [user, setUser] = useState(null);
     const [contexts, setContexts] = useState([]);
     const [tasks, setTasks] = useState([]);
+    const [allTasks, setAllTasks] = useState([]); // All tasks across all contexts for calendar
     const [focusLogs, setFocusLogs] = useState([]);
     const [activeContextId, setActiveContextId] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // Zen Mode State
     const [isZenMode, setIsZenMode] = useState(false);
+    const [showCompleted, setShowCompleted] = useState(true);
+
+    // AI & Features
+    const [showVoiceModal, setShowVoiceModal] = useState(false);
+    const [showKlarAI, setShowKlarAI] = useState(false);
 
     // Theme State
     const [themeMode, setThemeMode] = useState('custom'); // Default to Galaxy
@@ -105,20 +118,56 @@ export default function KlarApp() {
     const [showCommandPalette, setShowCommandPalette] = useState(false);
     const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState({ show: false, ctxId: null, ctxName: '' });
     const [commandSearch, setCommandSearch] = useState('');
     const [showShareModal, setShowShareModal] = useState(false);
     const [showAICommandBar, setShowAICommandBar] = useState(false);
+    const [contextMenu, setContextMenu] = useState({ show: false, taskId: null, x: 0, y: 0 });
 
     const [customMinutes, setCustomMinutes] = useState(30);
     const [completionToast, setCompletionToast] = useState(null);
 
+    // Forms
+    const [newTaskText, setNewTaskText] = useState('');
+
     // Editing State
     const [editingTask, setEditingTask] = useState(null);
 
+    // Dictation (Free Feature)
+    const dictation = useVoiceInput({ continuous: true });
+    const [dictationStartText, setDictationStartText] = useState('');
+
+    useEffect(() => {
+        if (dictation.isListening) {
+            setNewTaskText(dictationStartText + (dictationStartText && dictation.transcript ? ' ' : '') + dictation.transcript);
+        }
+    }, [dictation.transcript, dictation.isListening]); // dictationStartText is stable enough or included via closure, but safe to exclude from dep array if we don't want re-runs logic issues, though mostly fine.
+
+    const toggleDictation = () => {
+        if (dictation.isListening) {
+            dictation.stopListening();
+        } else {
+            setDictationStartText(newTaskText);
+            dictation.startListening();
+        }
+    };
+
+    // Auto-resize Input
+    const inputRef = useRef(null);
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.style.height = '56px'; // h-14
+            const scrollHeight = inputRef.current.scrollHeight;
+            if (scrollHeight > 56) {
+                inputRef.current.style.height = scrollHeight + 'px';
+            }
+        }
+    }, [newTaskText]);
+
     // Forms
-    const [newTaskText, setNewTaskText] = useState('');
     const [detailedForm, setDetailedForm] = useState({
-        text: '', description: '', date: '', time: '', recurrence: 'none'
+        text: '', description: '', date: '', time: '', recurrence: 'none', priority: 'medium'
     });
 
     // New Context Form
@@ -141,7 +190,7 @@ export default function KlarApp() {
             setShowUpgradeModal(true);
             return;
         }
-        setShowAICommandBar(true);
+        setShowKlarAI(true);
     };
 
     // Logout
@@ -261,11 +310,28 @@ export default function KlarApp() {
         let personalContexts = [];
         let sharedContexts = [];
 
-        const updateContexts = () => {
+        const updateContexts = async () => {
             const combined = [...personalContexts, ...sharedContexts];
             combined.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
             setContexts(combined);
-            if (!activeContextId && combined.length > 0) setActiveContextId(combined[0].id);
+
+            if (!activeContextId && combined.length > 0) {
+                setActiveContextId(combined[0].id);
+            } else if (combined.length === 0) {
+                // Auto-create Inbox if no contexts exist
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'contexts'), {
+                        name: 'Inbox',
+                        emoji: '📥',
+                        themeId: 'galaxy', // Default theme
+                        createdAt: serverTimestamp(),
+                        isShared: false,
+                        members: []
+                    });
+                } catch (e) {
+                    console.error("Failed to create default Inbox", e);
+                }
+            }
             setLoading(false);
         };
 
@@ -321,6 +387,52 @@ export default function KlarApp() {
 
         return () => unsubTasks();
     }, [user, activeContextId, contexts]);
+
+    // --- 2.6 All Tasks Subscription (for Calendar) ---
+    useEffect(() => {
+        if (!user || contexts.length === 0) return;
+
+        const unsubscribers = [];
+        let aggregatedTasks = [];
+
+        // Fetch tasks from all personal contexts
+        const personalTasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
+        const unsubPersonalTasks = onSnapshot(personalTasksRef, (snapshot) => {
+            const personalTasks = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Fetch tasks from all shared contexts
+            const sharedContextIds = contexts.filter(c => c.isShared).map(c => c.id);
+            const sharedTasksPromises = sharedContextIds.map(ctxId => {
+                return new Promise((resolve) => {
+                    const sharedTasksRef = collection(db, 'artifacts', appId, 'shared_contexts', ctxId, 'tasks');
+                    const unsub = onSnapshot(sharedTasksRef, (snapshot) => {
+                        const tasks = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data(),
+                            contextId: ctxId
+                        }));
+                        resolve(tasks);
+                    });
+                    unsubscribers.push(unsub);
+                });
+            });
+
+            Promise.all(sharedTasksPromises).then(sharedTasksArrays => {
+                const allSharedTasks = sharedTasksArrays.flat();
+                aggregatedTasks = [...personalTasks, ...allSharedTasks];
+                setAllTasks(aggregatedTasks);
+            });
+        });
+
+        unsubscribers.push(unsubPersonalTasks);
+
+        return () => {
+            unsubscribers.forEach(unsub => unsub());
+        };
+    }, [user, contexts]);
 
     // Save Settings Helper
     const saveSettings = async (newSettings) => {
@@ -383,14 +495,14 @@ export default function KlarApp() {
                 setShowCommandPalette(prev => !prev);
             }
 
-            // Cmd+J for AI
+            // Cmd+J for Klar AI
             if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
                 e.preventDefault();
-                if (showAICommandBar) {
-                    setShowAICommandBar(false);
-                } else {
-                    handleOpenAI();
+                if (!isPremium) {
+                    setShowUpgradeModal(true);
+                    return;
                 }
+                setShowKlarAI(prev => !prev);
             }
 
             // Space bar for timer
@@ -543,8 +655,7 @@ export default function KlarApp() {
         } catch (e) { console.error(e); }
     };
 
-    // State for confirmation dialog
-    const [deleteConfirm, setDeleteConfirm] = useState({ show: false, ctxId: null, ctxName: '' });
+    // State for confirmation dialog (moved to top with other state)
 
     const handleDeleteContext = async (ctxId) => {
         if (!user) return;
@@ -575,31 +686,177 @@ export default function KlarApp() {
         }
     };
 
+    // --- PALs / AI Insights ---
+    const [showPalsModal, setShowPalsModal] = useState(false);
+    const [palsLoading, setPalsLoading] = useState(false);
+    const [palsData, setPalsData] = useState(null);
+
+    const handleOpenPals = async (specificTask = null) => {
+        if (!user) return;
+
+        if (!isPremium) {
+            setShowUpgradeModal(true);
+            return;
+        }
+        setShowPalsModal(true);
+        setPalsLoading(true);
+        setPalsData(null);
+
+        try {
+            const context = buildAIContext({
+                activeContext,
+                tasks,
+                contexts,
+                focusState,
+                focusLogs,
+                user
+            });
+
+            // "PALs" prompt: Twos-style Categorization & Action
+            let prompt = `Review my list. Identify items that fit into categories (e.g. Birthday, Movie, Grocery) and suggest specific actions (e.g. 'Set yearly reminder', 'Add to shopping list'). Return as 'enhance_task' actions. Also provide general 'create_task' suggestions if I missed anything.`;
+
+            if (specificTask && typeof specificTask === 'string') {
+                prompt = `Analyze this specific task: "${specificTask}". Identify its category (Birthday, Movie, Grocery, etc) and suggest a specific enhancement (recurrence, due date, subtasks) as an 'enhance_task' action.`;
+            }
+
+            const response = await chatCompletion(prompt, context);
+            setPalsData(response);
+        } catch (e) {
+            console.error(e);
+            setPalsData({ message: "I'm having trouble connecting to my brain right now. Please try again in a moment.", actions: [] });
+        } finally {
+            setPalsLoading(false);
+        }
+    };
+
+    const handlePalsAction = async (action) => {
+        if (!user || !activeContextId) return;
+
+        // Task Form Interception (Applies to open modal)
+        if (showDetailedAdd) {
+            const isEdit = !!editingTask;
+            const setter = isEdit ? setEditingTask : setDetailedForm;
+            const current = isEdit ? editingTask : detailedForm;
+
+            if (action.type === 'enhance_task' || action.type === 'create_task') {
+                setter({
+                    ...current,
+                    // Append suggestion to description or replace if empty
+                    description: action.data.suggestion || action.data.description || current.description,
+                    recurrence: action.data.autoApply?.recurrence || current.recurrence,
+                    // Simple date handling (assumes YYYY-MM-DD from AI or keeps current)
+                    date: action.data.autoApply?.dueDate ? action.data.autoApply.dueDate.split('T')[0] : current.date
+                });
+                if (action.type === 'break_down' && action.data.subtasks) {
+                    setter({
+                        ...current,
+                        subtasks: [...(current.subtasks || []), ...action.data.subtasks.map((t, i) => ({ id: Date.now() + i, text: t, isDone: false }))]
+                    });
+                }
+
+                setCompletionToast({ text: 'Applied to Task Form!', id: Date.now() });
+                setTimeout(() => setCompletionToast(null), 3000);
+                setShowPalsModal(false);
+                return;
+            }
+        }
+
+        try {
+            const activeCtx = contexts.find(c => c.id === activeContextId);
+            const collectionPath = activeCtx?.isShared
+                ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
+                : `artifacts/${appId}/users/${user.uid}/tasks`;
+            const tasksRef = collection(db, collectionPath);
+
+            if (action.type === 'create_task' || action.type === 'enhance_task') {
+                const taskData = action.type === 'enhance_task' ? {
+                    text: action.data.text,
+                    description: action.data.suggestion || '',
+                    recurrence: action.data.autoApply?.recurrence || 'none',
+                    dueDate: action.data.autoApply?.dueDate || null
+                } : {
+                    text: action.data.text,
+                    description: action.data.description || '',
+                    recurrence: 'none',
+                    dueDate: action.data.dueDate || null
+                };
+
+                const subtasks = (action.data.subtasks || []).map((item, i) => ({
+                    id: Date.now() + i,
+                    text: typeof item === 'string' ? item : (item.text || item.title || JSON.stringify(item)),
+                    isDone: false
+                }));
+
+                await addDoc(tasksRef, {
+                    text: taskData.text,
+                    description: taskData.description,
+                    subtasks: subtasks,
+                    contextId: activeContextId,
+                    isDone: false,
+                    createdAt: serverTimestamp(),
+                    dueDate: taskData.dueDate,
+                    recurrence: taskData.recurrence || 'none'
+                });
+                setCompletionToast({ text: 'Action Applied!', id: Date.now() });
+            } else if (action.type === 'break_down' && action.data.subtasks) {
+                for (const subtask of action.data.subtasks) {
+                    await addDoc(tasksRef, {
+                        text: subtask,
+                        contextId: activeContextId,
+                        isDone: false,
+                        createdAt: serverTimestamp()
+                    });
+                }
+                setCompletionToast({ text: 'Tasks added!', id: Date.now() });
+            }
+            setTimeout(() => setCompletionToast(null), 3000);
+            if (action.type !== 'tip') setShowPalsModal(false); // Close if action taken
+        } catch (e) { console.error(e); }
+    };
+
     const handleQuickCreateTask = async (e) => {
         e.preventDefault();
         if (!newTaskText.trim() || !user || !activeContextId) return;
 
-        // Store task text and clear input immediately for better UX
-        const taskText = newTaskText.trim();
+        const rawText = newTaskText.trim();
         setNewTaskText('');
 
+        let isNote = false;
+        let cleanText = rawText;
+
+        if (cleanText.startsWith('- ')) {
+            isNote = true;
+            cleanText = cleanText.substring(2).trim();
+        }
+
+        let parsedDate = null;
+        if (!isNote) {
+            const results = chrono.parse(cleanText);
+            if (results.length > 0) {
+                const result = results[0];
+                parsedDate = result.start.date().toISOString();
+                cleanText = cleanText.replace(result.text, '').replace(/\s+/g, ' ').trim();
+            }
+        }
+
         try {
-            // Determine collection based on context type
             const activeCtx = contexts.find(c => c.id === activeContextId);
             const collectionPath = activeCtx?.isShared
                 ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
                 : `artifacts/${appId}/users/${user.uid}/tasks`;
 
             await addDoc(collection(db, collectionPath), {
-                text: taskText,
+                text: cleanText,
                 description: '',
                 subtasks: [],
-                dueDate: null,
+                dueDate: parsedDate,
                 recurrence: 'none',
                 contextId: activeContextId,
                 isDone: false,
+                type: isNote ? 'note' : 'task',
                 createdAt: serverTimestamp()
             });
+            SoundEngine.playComplete();
         } catch (err) { console.error(err); }
     };
 
@@ -624,28 +881,32 @@ export default function KlarApp() {
                 subtasks: detailedForm.subtasks || [],
                 dueDate: dueTimestamp,
                 recurrence: detailedForm.recurrence,
+                priority: detailedForm.priority || 'medium',
                 contextId: activeContextId,
                 isDone: false,
                 createdAt: serverTimestamp()
             });
             setShowDetailedAdd(false);
-            setDetailedForm({ text: '', description: '', date: '', time: '', recurrence: 'none' });
+            setDetailedForm({ text: '', description: '', date: '', time: '', recurrence: 'none', priority: 'medium' });
         } catch (err) { console.error(err); }
     };
 
     const toggleTask = async (task) => {
         if (!user) return;
         const newIsDone = !task.isDone;
-        if (newIsDone) SoundEngine.playComplete();
 
-        const activeCtx = contexts.find(c => c.id === activeContextId); // Or use task.contextId logic?
-        // Logic: if task belongs to shared context, update shared task.
-        // Assuming we know if the task is shared.
-        // My task subscription adds 'contextId' to the task.
-        // I need to check if that context is shared.
+        if (newIsDone) {
+            SoundEngine.playComplete();
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: themeMode === 'custom' ? [customTheme.accentColor, '#ffffff'] : ['#10b981', '#3b82f6']
+            });
+        }
+
         const ctx = contexts.find(c => c.id === task.contextId);
         const isShared = ctx?.isShared;
-
         const collectionPath = isShared
             ? `artifacts/${appId}/shared_contexts/${task.contextId}/tasks`
             : `artifacts/${appId}/users/${user.uid}/tasks`;
@@ -670,7 +931,22 @@ export default function KlarApp() {
                 setCompletionToast({ text: "Task Repeated", sub: `Next due: ${new Date(nextDueDate).toLocaleDateString()}` });
             } catch (e) { console.error(e); }
         } else if (newIsDone) {
-            setCompletionToast({ text: "Completed!", sub: null });
+            setCompletionToast({ text: "Nice work!", sub: "Task completed" });
+
+            // Auto-Cleanup: Delete older completed tasks with the same name
+            const redundantTasks = tasks.filter(t =>
+                t.contextId === task.contextId &&
+                t.text.trim().toLowerCase() === task.text.trim().toLowerCase() &&
+                t.isDone &&
+                t.id !== task.id
+            );
+
+            if (redundantTasks.length > 0) {
+                console.log(`Cleaning up ${redundantTasks.length} redundant tasks...`);
+                redundantTasks.forEach(oldTask => {
+                    deleteDoc(doc(db, collectionPath, oldTask.id)).catch(e => console.error("Cleanup error", e));
+                });
+            }
         }
 
         if (focusState.taskId === task.id && newIsDone) {
@@ -684,19 +960,65 @@ export default function KlarApp() {
 
     const deleteTask = async (taskId) => {
         if (!user) return;
-        // Need to find the task to know which collection it is in?
-        // Or assume active context?
-        const task = tasks.find(t => t.id === taskId);
-        if (!task) return;
+        try {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
 
-        const ctx = contexts.find(c => c.id === task.contextId);
-        const isShared = ctx?.isShared;
-        const collectionPath = isShared
-            ? `artifacts/${appId}/shared_contexts/${task.contextId}/tasks`
-            : `artifacts/${appId}/users/${user.uid}/tasks`;
+            const activeCtx = contexts.find(c => c.id === activeContextId);
+            const collectionPath = activeCtx?.isShared
+                ? `artifacts/${appId}/shared_contexts/${activeContextId}/tasks`
+                : `artifacts/${appId}/users/${user.uid}/tasks`;
 
-        await deleteDoc(doc(db, collectionPath, taskId));
-        if (focusState.taskId === taskId) resetTimer();
+            await deleteDoc(doc(db, collectionPath, taskId));
+
+            // Stop timer if deleting focused task
+            if (focusState.taskId === taskId) {
+                setFocusState({ ...focusState, taskId: null, isRunning: false });
+            }
+        } catch (err) { console.error(err); }
+    };
+
+    const handleMoveTask = async (taskId, targetContextId) => {
+        if (!user || !taskId || !targetContextId) return;
+
+        try {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const sourceCtx = contexts.find(c => c.id === task.contextId);
+            const targetCtx = contexts.find(c => c.id === targetContextId);
+
+            // Delete from source
+            const sourceCollectionPath = sourceCtx?.isShared
+                ? `artifacts/${appId}/shared_contexts/${task.contextId}/tasks`
+                : `artifacts/${appId}/users/${user.uid}/tasks`;
+
+            // Add to target
+            const targetCollectionPath = targetCtx?.isShared
+                ? `artifacts/${appId}/shared_contexts/${targetContextId}/tasks`
+                : `artifacts/${appId}/users/${user.uid}/tasks`;
+
+            // Create in new location
+            await addDoc(collection(db, targetCollectionPath), {
+                text: task.text,
+                description: task.description || '',
+                subtasks: task.subtasks || [],
+                dueDate: task.dueDate || null,
+                recurrence: task.recurrence || 'none',
+                contextId: targetContextId,
+                isDone: task.isDone,
+                createdAt: serverTimestamp()
+            });
+
+            // Delete from old location
+            await deleteDoc(doc(db, sourceCollectionPath, taskId));
+
+            setContextMenu({ show: false, taskId: null, x: 0, y: 0 });
+            setCompletionToast({ text: `Moved to ${targetCtx.name}`, id: Date.now() });
+            setTimeout(() => setCompletionToast(null), 3000);
+        } catch (err) {
+            console.error('Move task error:', err);
+        }
     };
 
     const startEditing = (task) => {
@@ -715,9 +1037,10 @@ export default function KlarApp() {
             date: dateStr,
             time: timeStr,
             recurrence: task.recurrence || 'none',
+            priority: task.priority || 'medium',
             contextId: task.contextId
         });
-        setShowDetailedAdd(true); // Open the modal!
+        setShowDetailedAdd(true);
     };
 
     const saveTaskEdit = async (e) => {
@@ -740,9 +1063,11 @@ export default function KlarApp() {
             description: editingTask.description,
             subtasks: editingTask.subtasks || [],
             dueDate: dueTimestamp,
-            recurrence: editingTask.recurrence
+            recurrence: editingTask.recurrence,
+            priority: editingTask.priority || 'medium'
         });
         setEditingTask(null);
+        setShowDetailedAdd(false);
     };
 
     const toggleTimer = (taskId) => {
@@ -762,7 +1087,6 @@ export default function KlarApp() {
     };
 
     const stopTimer = () => {
-        if (!focusState.taskId) return;
         resetTimer();
     };
 
@@ -796,6 +1120,42 @@ export default function KlarApp() {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Voice Action Handler
+    const handleVoiceAction = async (action) => {
+        if (!action) return;
+
+        if (action.intent === 'create_task') {
+            const ctxId = action.contextId || activeContextId || contexts[0]?.id;
+            const targetCtx = contexts.find(c => c.id === ctxId) || contexts[0];
+
+            if (!targetCtx || !user) return;
+
+            const isShared = targetCtx.isShared;
+            const collectionPath = isShared
+                ? `artifacts/${appId}/shared_contexts/${targetCtx.id}/tasks`
+                : `artifacts/${appId}/users/${user.uid}/tasks`;
+
+            try {
+                await addDoc(collection(db, collectionPath), {
+                    text: action.text,
+                    description: '',
+                    subtasks: [],
+                    dueDate: action.date ? new Date(action.date).toISOString() : null,
+                    recurrence: 'none',
+                    priority: action.priority || 'medium',
+                    contextId: targetCtx.id,
+                    isDone: false,
+                    createdAt: serverTimestamp()
+                });
+                setCompletionToast(`Created "${action.text}" in ${targetCtx.name}`);
+                setTimeout(() => setCompletionToast(null), 3000);
+            } catch (e) { console.error("Voice create error", e); }
+
+        } else if (action.intent === 'navigate') {
+            setActiveContextId(action.contextId);
+        }
     };
 
     // Toggle subtask completion (for Zen Mode)
@@ -898,6 +1258,29 @@ export default function KlarApp() {
         return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
     });
 
+    const visibleTasks = useMemo(() => {
+        const tasksToShow = showCompleted ? sortedTasks : sortedTasks.filter(t => !t.isDone);
+
+        // Deduplicate completed tasks by name (keep only the latest one)
+        const uniqueTasks = [];
+        const seenCompletedNames = new Set();
+
+        for (const task of tasksToShow) {
+            if (!task.isDone) {
+                uniqueTasks.push(task);
+                continue;
+            }
+
+            const key = task.text.trim().toLowerCase();
+            if (!seenCompletedNames.has(key)) {
+                seenCompletedNames.add(key);
+                uniqueTasks.push(task);
+            }
+            // If seen, skip it (it's an older duplicate)
+        }
+        return uniqueTasks;
+    }, [sortedTasks, showCompleted]);
+
     const filteredContexts = contexts.filter(c => c.name.toLowerCase().includes(commandSearch.toLowerCase()));
 
     // Custom Style & Theme Detection for Decoration
@@ -978,14 +1361,7 @@ export default function KlarApp() {
                     </div>
                 )}
 
-                <style>{`
-                  ::-webkit-scrollbar { width: 6px; height: 6px; }
-                  ::-webkit-scrollbar-track { background: transparent; }
-                  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-                  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-                  .dark ::-webkit-scrollbar-thumb { background: #334155; }
-                  .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
-                `}</style>
+
 
                 <AnimatePresence mode='wait'>
                     {isSidebarOpen && (
@@ -1024,7 +1400,20 @@ export default function KlarApp() {
                                     </button>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto p-4 space-y-1">
+                                <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
+                                    <button
+                                        onClick={() => setActiveContextId(null)}
+                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all mb-4 ${!activeContextId
+                                            ? (themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)] ring-1 ring-[var(--accent-color)]' : 'bg-white dark:bg-slate-800 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 text-slate-900 dark:text-white')
+                                            : (themeMode === 'custom' ? 'text-[var(--text-color)] opacity-60 hover:opacity-100 hover:bg-white/5' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-200')
+                                            }`}
+                                    >
+                                        <div className={`flex items-center justify-center w-6 h-6 rounded ${!activeContextId ? 'bg-purple-500 text-white' : 'bg-transparent'}`}>
+                                            <LayoutGrid size={16} />
+                                        </div>
+                                        <span>Home</span>
+                                    </button>
+
                                     <div className="px-2 pb-2 text-[10px] font-bold opacity-50 uppercase tracking-wider flex justify-between items-center">
                                         <span>Your Contexts</span>
                                         <span className="opacity-70 px-1.5 py-0.5 rounded text-[9px] bg-black/5 dark:bg-white/10">{contexts.length}</span>
@@ -1136,7 +1525,7 @@ export default function KlarApp() {
                                     <motion.div key="toast" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300">
                                         <Check size={14} /> {completionToast.text}
                                     </motion.div>
-                                ) : focusState.taskId ? (
+                                ) : (focusState.taskId || focusState.isRunning) ? (
                                     <motion.button key="timer" onClick={() => setShowTimerSettings(true)} className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-xs font-mono font-bold ${focusState.isRunning ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'}`}>
                                         <div className={`w-2 h-2 rounded-full ${focusState.isRunning ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`} />
                                         {formatTime(focusState.remaining)}
@@ -1149,34 +1538,96 @@ export default function KlarApp() {
                                     <Share2 size={20} />
                                 </button>
                             )}
-                            <button onClick={() => setShowStats(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><BarChart2 size={20} /></button>
+
+                            <button
+                                onClick={() => isPremium ? setShowVoiceModal(true) : setShowUpgradeModal(true)}
+                                className={`p-2 rounded-lg transition-all ${isPremium ? 'opacity-40 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10' : 'opacity-60 text-amber-500 hover:bg-amber-500/10'}`}
+                                title={isPremium ? "Voice Command" : "Voice Command (Premium)"}
+                            >
+                                <Mic size={20} />
+                            </button>
+
+                            <button onClick={() => setShowCalendar(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Calendar"><Calendar size={20} /></button>
+                            <button onClick={() => setShowStats(true)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Stats"><BarChart2 size={20} /></button>
                         </div>
                     </header>
 
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto scrollbar-hide">
                         {!activeContext ? (
-                            <div className="h-full flex items-center justify-center opacity-50">Select a context</div>
+                            <Dashboard
+                                user={user}
+                                tasks={allTasks}
+                                contexts={contexts}
+                                themeMode={themeMode}
+                                activeTheme={activeTheme}
+                                onNavigate={setActiveContextId}
+                                onStartTask={task => {
+                                    setActiveContextId(task.contextId);
+                                    setTimeout(() => toggleTimer(task.id), 100);
+                                }}
+                                onStartPomodoro={() => {
+                                    setFocusState({
+                                        taskId: null,
+                                        totalDuration: 25 * 60,
+                                        remaining: 25 * 60,
+                                        isRunning: true,
+                                        mode: 'Pomodoro',
+                                        phase: 'focus',
+                                        cycle: 0
+                                    });
+                                }}
+                                focusState={focusState}
+                                onStopTimer={stopTimer}
+                                onToggleTimer={toggleTimer}
+                            />
                         ) : (
                             <div className="max-w-3xl mx-auto py-8 px-4 md:py-12 md:px-6">
-                                <div className="mb-10">
-                                    <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-6 text-2xl shadow-sm ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)]' : `${activeTheme.bg} ${activeTheme.text}`}`}>{activeContext.emoji}</div>
-                                    <h1 className="text-4xl font-bold tracking-tight mb-2">{activeContext.name}</h1>
+                                <div className="mb-10 flex items-end justify-between">
+                                    <div>
+                                        <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-6 text-2xl shadow-sm ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--accent-color)]' : `${activeTheme.bg} ${activeTheme.text}`}`}>{activeContext.emoji}</div>
+                                        <h1 className="text-4xl font-bold tracking-tight mb-2">{activeContext.name}</h1>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowCompleted(!showCompleted)}
+                                        className={`p-2 rounded-lg transition-all mb-2 ${showCompleted ? 'opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200' : 'opacity-50 hover:opacity-100'}`}
+                                        title={showCompleted ? "Hide Completed Tasks" : "Show Completed Tasks"}
+                                    >
+                                        {showCompleted ? <Eye size={20} /> : <EyeOff size={20} />}
+                                    </button>
                                 </div>
 
                                 <div className="mb-8">
                                     <form onSubmit={handleQuickCreateTask} className="relative group">
                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-40"><Plus size={20} /></div>
-                                        <input type="text" value={newTaskText} onChange={(e) => setNewTaskText(e.target.value)} placeholder={`Add a task to ${activeContext.name}...`} className={`w-full h-14 pl-12 pr-16 border rounded-xl shadow-sm text-lg outline-none bg-transparent ${themeMode === 'custom' ? 'border-[var(--border-color)] placeholder-[var(--text-color)]/30' : 'border-slate-200 dark:border-slate-800'}`} />
-                                        <button type="button" onClick={() => { setShowDetailedAdd(true); setDetailedForm(prev => ({ ...prev, text: newTaskText })); setNewTaskText(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 opacity-40 hover:opacity-100"><Maximize2 size={16} /></button>
+                                        <textarea
+                                            ref={inputRef}
+                                            value={newTaskText}
+                                            onChange={(e) => setNewTaskText(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    handleQuickCreateTask(e);
+                                                }
+                                            }}
+                                            placeholder={`Add a task to ${activeContext.name}...`}
+                                            className={`w-full h-14 min-h-[56px] py-3.5 pl-12 pr-24 border rounded-xl shadow-sm text-lg outline-none bg-transparent resize-none overflow-hidden ${themeMode === 'custom' ? 'border-[var(--border-color)] placeholder-[var(--text-color)]/30' : 'border-slate-200 dark:border-slate-800'}`}
+                                        />
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                            <button type="button" onClick={toggleDictation} className={`p-2 transition-all rounded-lg ${dictation.isListening ? 'text-red-500 bg-red-500/10' : 'opacity-40 hover:opacity-100'}`} title="Dictate">
+                                                <Mic size={16} className={dictation.isListening ? 'animate-pulse' : ''} />
+                                            </button>
+                                            <button type="button" onClick={() => { setShowDetailedAdd(true); setDetailedForm(prev => ({ ...prev, text: newTaskText })); setNewTaskText(''); }} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Maximize2 size={16} /></button>
+                                        </div>
                                     </form>
                                 </div>
 
                                 <div className="space-y-4">
                                     <AnimatePresence>
-                                        {sortedTasks.map((task) => {
+                                        {visibleTasks.map((task) => {
                                             const isFocused = focusState.taskId === task.id;
                                             const progress = isFocused ? ((focusState.totalDuration - focusState.remaining) / focusState.totalDuration) * 100 : 0;
                                             const dateInfo = formatDueDate(task.dueDate);
+                                            const isNote = task.type === 'note';
 
                                             return (
                                                 <motion.div
@@ -1189,21 +1640,49 @@ export default function KlarApp() {
                                                         borderColor: isFocused ? (themeMode === 'custom' ? 'var(--accent-color)' : 'currentColor') : 'transparent'
                                                     }}
                                                     exit={{ opacity: 0, scale: 0.95 }}
+                                                    onContextMenu={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        // Close any existing menu first, then open new one
+                                                        setContextMenu({ show: false, taskId: null, x: 0, y: 0 });
+                                                        setTimeout(() => {
+                                                            setContextMenu({
+                                                                show: true,
+                                                                taskId: task.id,
+                                                                x: e.clientX,
+                                                                y: e.clientY
+                                                            });
+                                                        }, 0);
+                                                    }}
                                                     className={`group relative flex items-start gap-4 p-4 border rounded-xl ${themeMode === 'custom' ? `bg-[var(--card-bg)] ${isFocused ? 'border-[var(--accent-color)]' : 'border-[var(--border-color)]'}` : `bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800`}`}
                                                 >
                                                     {isFocused && <motion.div className={`absolute inset-0 rounded-xl pointer-events-none ${themeMode === 'custom' ? 'bg-white/5' : 'bg-blue-50 dark:bg-blue-900/10'}`} layoutId="focusHighlight" />}
 
-                                                    <button onClick={() => toggleTask(task)} className={`flex-shrink-0 w-6 h-6 mt-1 rounded-lg border-2 flex items-center justify-center z-10 ${task.isDone ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-600'}`}>
-                                                        {task.isDone && <Check size={14} strokeWidth={3} />}
-                                                    </button>
+                                                    {/* Checkbox vs Note Bullet */}
+                                                    {isNote ? (
+                                                        <div className="flex-shrink-0 w-6 h-6 mt-1 flex items-center justify-center pointer-events-none select-none">
+                                                            <div className={`w-2 h-2 rounded-full ${themeMode === 'custom' ? 'bg-[var(--accent-color)]' : 'bg-slate-400 dark:bg-slate-600'} opacity-60`} />
+                                                        </div>
+                                                    ) : (
+                                                        <button onClick={() => toggleTask(task)} className={`flex-shrink-0 w-6 h-6 mt-1 rounded-lg border-2 flex items-center justify-center z-10 ${task.isDone ? 'bg-slate-900 dark:bg-white border-slate-900 dark:border-white text-white dark:text-slate-900' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                            {task.isDone && <Check size={14} strokeWidth={3} />}
+                                                        </button>
+                                                    )}
 
                                                     <div
                                                         className="flex-1 z-10 min-w-0 cursor-pointer"
                                                         onClick={() => startEditing(task)}
                                                     >
-                                                        <span className={`text-[15px] font-medium block ${task.isDone ? 'opacity-50 line-through' : ''} ${isFocused ? 'text-xl font-bold' : ''}`}>{task.text}</span>
-                                                        {(dateInfo || task.description) && !task.isDone && (
+                                                        <span className={`text-[15px] block ${isNote ? 'font-normal opacity-90 italic' : 'font-medium'} ${task.isDone ? 'opacity-50 line-through' : ''} ${isFocused ? 'text-xl font-bold' : ''}`}>{task.text}</span>
+                                                        {(dateInfo || task.description || (task.priority && task.priority !== 'medium')) && !task.isDone && (
                                                             <div className="flex flex-wrap items-center gap-3 mt-1.5 opacity-60 text-xs">
+                                                                {task.priority && task.priority !== 'medium' && (
+                                                                    <div className={`flex items-center gap-1 font-bold uppercase tracking-wider ${task.priority === 'high' ? 'text-red-500' : 'text-blue-500'
+                                                                        }`}>
+                                                                        <Flag size={11} fill="currentColor" />
+                                                                        {task.priority}
+                                                                    </div>
+                                                                )}
                                                                 {dateInfo && <div className={`flex items-center gap-1 ${dateInfo.isOverdue ? 'text-red-500' : ''}`}><Calendar size={12} /> {dateInfo.text}</div>}
                                                                 {task.description && <div className="flex items-center gap-1"><AlignLeft size={12} /> Notes</div>}
                                                             </div>
@@ -1219,60 +1698,81 @@ export default function KlarApp() {
                                                         )}
                                                     </div>
 
-                                                    {!task.isDone && (
-                                                        <div className="flex items-center gap-2 z-10 self-start mt-0.5">
-                                                            <div className="relative">
-                                                                {isFocused && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><ProgressRing radius={22} stroke={2} progress={progress} /></div>}
-                                                                <button
-                                                                    onClick={() => toggleTimer(task.id)}
-                                                                    className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${isFocused
-                                                                        ? (themeMode === 'custom'
-                                                                            ? 'bg-[var(--accent-color)] text-[var(--main-bg)]'
-                                                                            : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
-                                                                        : (themeMode === 'custom'
-                                                                            ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-[var(--main-bg)]'
-                                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900')
-                                                                        }`}
-                                                                >
-                                                                    {isFocused && focusState.isRunning ? <Pause size={16} /> : <Play size={16} />}
-                                                                </button>
-                                                            </div>
-
-                                                            <AnimatePresence>
-                                                                {(isFocused || (!isFocused && !focusState.isRunning)) && (
-                                                                    <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} className="flex items-center gap-1 overflow-hidden">
-                                                                        {isFocused ? (
-                                                                            <>
-                                                                                <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Enter Zen Mode"><Maximize2 size={16} /></button>
-                                                                                <button onClick={stopTimer} className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg"><Square size={16} /></button>
-                                                                            </>
-                                                                        ) : (
-                                                                            <>
-                                                                                <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Focus on this task"><Maximize2 size={16} /></button>
-                                                                                <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
-                                                                            </>
-                                                                        )}
+                                                    <div className="flex items-center gap-2 z-10 self-start mt-0.5">
+                                                        {!task.isDone ? (
+                                                            <>
+                                                                {!isNote && (
+                                                                    <div className="relative">
+                                                                        {isFocused && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"><ProgressRing radius={22} stroke={2} progress={progress} /></div>}
                                                                         <button
-                                                                            onClick={() => setShowTimerSettings(true)}
-                                                                            className={`p-2 rounded-lg transition-colors ${Object.values(soundMixer || {}).some(v => v > 0)
-                                                                                ? 'opacity-100 text-blue-500'
-                                                                                : 'opacity-40 hover:opacity-100'
+                                                                            onClick={() => toggleTimer(task.id)}
+                                                                            className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${isFocused
+                                                                                ? (themeMode === 'custom'
+                                                                                    ? 'bg-[var(--accent-color)] text-[var(--main-bg)]'
+                                                                                    : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
+                                                                                : (themeMode === 'custom'
+                                                                                    ? 'bg-[var(--accent-color)]/20 text-[var(--accent-color)] hover:bg-[var(--accent-color)] hover:text-[var(--main-bg)]'
+                                                                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900')
                                                                                 }`}
-                                                                            title={Object.values(soundMixer || {}).some(v => v > 0) ? "Sound ON" : "Sound OFF"}
                                                                         >
-                                                                            {Object.values(soundMixer || {}).some(v => v > 0) ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                                                                            {isFocused && focusState.isRunning ? <Pause size={16} /> : <Play size={16} />}
                                                                         </button>
-                                                                        <button
-                                                                            onClick={() => deleteTask(task.id)}
-                                                                            className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg transition-colors"
-                                                                        >
-                                                                            <Trash2 size={16} />
-                                                                        </button>
-                                                                    </motion.div>
+                                                                    </div>
                                                                 )}
-                                                            </AnimatePresence>
-                                                        </div>
-                                                    )}
+
+                                                                <AnimatePresence>
+                                                                    {(isFocused || (!isFocused && !focusState.isRunning)) && (
+                                                                        <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} className="flex items-center gap-1 overflow-hidden">
+                                                                            {!isNote && (
+                                                                                isFocused ? (
+                                                                                    <>
+                                                                                        <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Enter Zen Mode"><Maximize2 size={16} /></button>
+                                                                                        <button onClick={stopTimer} className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg"><Square size={16} /></button>
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <button onClick={() => enterZenMode(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg" title="Focus on this task"><Maximize2 size={16} /></button>
+                                                                                        <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
+                                                                                    </>
+                                                                                )
+                                                                            )}
+
+                                                                            {isNote && (
+                                                                                <button onClick={() => startEditing(task)} className="p-2 opacity-40 hover:opacity-100 rounded-lg"><Edit3 size={16} /></button>
+                                                                            )}
+
+                                                                            {!isNote && (
+                                                                                <button
+                                                                                    onClick={() => setShowTimerSettings(true)}
+                                                                                    className={`p-2 rounded-lg transition-colors ${Object.values(soundMixer || {}).some(v => v > 0)
+                                                                                        ? 'opacity-100 text-blue-500'
+                                                                                        : 'opacity-40 hover:opacity-100'
+                                                                                        }`}
+                                                                                    title={Object.values(soundMixer || {}).some(v => v > 0) ? "Sound ON" : "Sound OFF"}
+                                                                                >
+                                                                                    {Object.values(soundMixer || {}).some(v => v > 0) ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                onClick={() => deleteTask(task.id)}
+                                                                                className="p-2 opacity-40 hover:opacity-100 hover:text-red-500 rounded-lg transition-colors"
+                                                                            >
+                                                                                <Trash2 size={16} />
+                                                                            </button>
+                                                                        </motion.div>
+                                                                    )}
+                                                                </AnimatePresence>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => deleteTask(task.id)}
+                                                                className="p-2 opacity-0 group-hover:opacity-100 hover:text-red-500 rounded-lg transition-all"
+                                                                title="Delete Task"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </motion.div>
                                             );
                                         })}
@@ -1323,6 +1823,7 @@ export default function KlarApp() {
                             activeContext={activeContext}
                             themeMode={themeMode}
                             customTheme={customTheme}
+                            onPals={handleOpenPals}
                         />
                     )}
 
@@ -1357,6 +1858,17 @@ export default function KlarApp() {
                             onClose={() => setShowStats(false)}
                             statsData={statsData}
                             themeMode={themeMode}
+                        />
+                    )}
+
+                    {showCalendar && (
+                        <CalendarModal
+                            key="calendar-modal"
+                            show={showCalendar}
+                            onClose={() => setShowCalendar(false)}
+                            tasks={allTasks}
+                            themeMode={themeMode}
+                            customTheme={customTheme}
                         />
                     )}
 
@@ -1395,6 +1907,28 @@ export default function KlarApp() {
                         />
                     )}
 
+                    <VoiceModal
+                        key="voice-modal"
+                        show={showVoiceModal}
+                        onClose={() => setShowVoiceModal(false)}
+                        onAction={handleVoiceAction}
+                        contexts={contexts}
+                        activeContextId={activeContextId}
+                    />
+
+                    <KlarAIModal
+                        key="klar-ai-modal"
+                        show={showKlarAI}
+                        onClose={() => setShowKlarAI(false)}
+                        onCommand={handleVoiceAction}
+                        contexts={contexts}
+                        activeContextId={activeContextId}
+                        user={user}
+                        tasks={tasks}
+                        focusState={focusState}
+                        focusLogs={focusLogs}
+                    />
+
                     {showUpgradeModal && (
                         <UpgradeModal
                             key="upgrade-modal"
@@ -1416,6 +1950,112 @@ export default function KlarApp() {
                             confirmText="Delete"
                             themeMode={themeMode}
                         />
+                    )}
+
+                    {/* PALs / AI Suggestions Modal */}
+                    {showPalsModal && (
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+                            onClick={() => setShowPalsModal(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
+                                className={`w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden relative ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--text-color)] border border-[var(--border-color)]' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800'}`}
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 ${palsLoading ? 'animate-pulse' : ''}`} />
+
+                                <div className="p-6">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h2 className="text-xl font-bold flex items-center gap-2">
+                                            <Sparkles className="text-purple-500 fill-purple-500" size={20} />
+                                            <span>AI Suggestions</span>
+                                        </h2>
+                                        <button onClick={() => setShowPalsModal(false)} className="opacity-50 hover:opacity-100 p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10"><X size={20} /></button>
+                                    </div>
+
+                                    {palsLoading ? (
+                                        <div className="py-12 flex flex-col items-center justify-center gap-4 text-center opacity-70">
+                                            <Loader2 className="animate-spin text-purple-500" size={40} />
+                                            <div className="space-y-1">
+                                                <p className="font-medium text-lg">Thinking...</p>
+                                                <p className="text-sm opacity-70">Analyzing your tasks to find smart wins.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex gap-4 items-start">
+                                                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0 mt-1">
+                                                    <Brain size={20} />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <p className="text-[15px] leading-relaxed opacity-90">{palsData?.message}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <h3 className="text-xs font-bold uppercase tracking-wider opacity-50 px-1">Suggested Actions</h3>
+                                                {palsData?.actions && palsData.actions.length > 0 ? (
+                                                    palsData.actions.map((action, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => handlePalsAction(action)}
+                                                            className={`w-full p-4 rounded-xl text-left border transition-all flex items-start gap-4 group ${themeMode === 'custom' ? 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20' : 'bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700'}`}
+                                                        >
+                                                            <div className={`mt-0.5 p-2 rounded-lg shrink-0 transition-colors ${themeMode === 'custom' ? 'bg-white/10 text-[var(--accent-color)]' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 group-hover:bg-purple-100 group-hover:text-purple-600 dark:group-hover:bg-purple-900/50 dark:group-hover:text-purple-300'}`}>
+                                                                {action.type === 'create_task' && <Plus size={18} />}
+                                                                {action.type === 'enhance_task' && (
+                                                                    action.data.category === 'Birthday' ? <Gift size={18} /> :
+                                                                        action.data.category === 'Movie' ? <Film size={18} /> :
+                                                                            action.data.category === 'Grocery' ? <ShoppingCart size={18} /> :
+                                                                                <Tag size={18} />
+                                                                )}
+                                                                {action.type === 'break_down' && <LayoutGrid size={18} />}
+                                                                {action.type === 'prioritize' && <Flame size={18} />}
+                                                                {action.type === 'tip' && <CheckCircle2 size={18} />}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="font-semibold text-sm mb-1 capitalize flex items-center gap-2">
+                                                                    {action.type === 'enhance_task' ? action.data.category : action.type.replace(/_/g, ' ')}
+                                                                </div>
+                                                                <div className="text-xs opacity-70 leading-normal">
+                                                                    {action.type === 'create_task' && (
+                                                                        <span>Create task: <span className="font-medium">"{action.data.text}"</span></span>
+                                                                    )}
+                                                                    {action.type === 'enhance_task' && (
+                                                                        <span>{action.data.suggestion} for <span className="font-medium">"{action.data.text}"</span></span>
+                                                                    )}
+                                                                    {action.type === 'break_down' && (
+                                                                        <span>Break down this task into smaller steps.</span>
+                                                                    )}
+                                                                    {action.type === 'prioritize' && (
+                                                                        <span>{action.data.reasoning || "Focus on this to make progress."}</span>
+                                                                    )}
+                                                                    {action.type === 'tip' && (
+                                                                        <span>{action.data.content}</span>
+                                                                    )}
+                                                                    {!['create_task', 'enhance_task', 'break_down', 'prioritize', 'tip'].includes(action.type) && (
+                                                                        <span>{JSON.stringify(action.data).slice(0, 50)}...</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {action.type !== 'tip' && (
+                                                                <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold text-purple-500 uppercase tracking-wide">
+                                                                    Apply
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-4 text-center text-sm opacity-50 italic">No specific actions needed right now. Good job!</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        </motion.div>
                     )}
                 </AnimatePresence>
 
@@ -1526,6 +2166,80 @@ export default function KlarApp() {
                             customTheme={customTheme}
                             formatTime={formatTime}
                         />
+                    )}
+                </AnimatePresence>
+
+                {/* Task Context Menu */}
+                <AnimatePresence>
+                    {contextMenu.show && (
+                        <>
+                            {/* Backdrop to close menu */}
+                            <div
+                                className="fixed inset-0 z-[90]"
+                                onClick={() => setContextMenu({ show: false, taskId: null, x: 0, y: 0 })}
+                            />
+
+                            {/* Context Menu */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                onClick={(e) => e.stopPropagation()}
+                                onContextMenu={(e) => e.preventDefault()}
+                                style={{
+                                    position: 'fixed',
+                                    left: contextMenu.x,
+                                    top: contextMenu.y,
+                                    zIndex: 100
+                                }}
+                                className={`min-w-[200px] rounded-xl shadow-2xl overflow-hidden border ${themeMode === 'custom' ? 'bg-[var(--card-bg)] border-[var(--border-color)]' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'}`}
+                            >
+                                <div className="py-2">
+                                    {/* Edit */}
+                                    <button
+                                        onClick={() => {
+                                            const task = tasks.find(t => t.id === contextMenu.taskId);
+                                            if (task) startEditing(task);
+                                            setContextMenu({ show: false, taskId: null, x: 0, y: 0 });
+                                        }}
+                                        className={`w-full px-4 py-2 text-left flex items-center gap-3 text-sm ${themeMode === 'custom' ? 'hover:bg-white/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                    >
+                                        <Edit3 size={16} />
+                                        <span>Edit</span>
+                                    </button>
+
+                                    {/* Delete */}
+                                    <button
+                                        onClick={() => {
+                                            deleteTask(contextMenu.taskId);
+                                            setContextMenu({ show: false, taskId: null, x: 0, y: 0 });
+                                        }}
+                                        className={`w-full px-4 py-2 text-left flex items-center gap-3 text-sm text-red-500 ${themeMode === 'custom' ? 'hover:bg-white/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                    >
+                                        <Trash2 size={16} />
+                                        <span>Delete</span>
+                                    </button>
+
+                                    {/* Divider */}
+                                    <div className={`my-2 h-px ${themeMode === 'custom' ? 'bg-white/10' : 'bg-slate-200 dark:bg-slate-700'}`} />
+
+                                    {/* Move to Context */}
+                                    <div className="px-4 py-1 text-xs font-bold opacity-50 uppercase tracking-wider">
+                                        Move to
+                                    </div>
+                                    {contexts.filter(ctx => ctx.id !== activeContextId).map(ctx => (
+                                        <button
+                                            key={ctx.id}
+                                            onClick={() => handleMoveTask(contextMenu.taskId, ctx.id)}
+                                            className={`w-full px-4 py-2 text-left flex items-center gap-3 text-sm ${themeMode === 'custom' ? 'hover:bg-white/10' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                        >
+                                            <MoveRight size={16} />
+                                            <span>{ctx.emoji} {ctx.name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        </>
                     )}
                 </AnimatePresence>
 

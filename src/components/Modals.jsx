@@ -5,7 +5,7 @@ import {
     Keyboard, Search, Check, Activity, CheckCircle2, Flame,
     Sliders, Sun, Moon, Monitor, Palette, RefreshCcw, Wand2,
     Volume2, VolumeX, Waves, CloudRain, Wind,
-    Users, UserPlus, Share2, Loader2, User, Sparkles, Crown, Zap, ShieldCheck
+    Users, UserPlus, Share2, Loader2, User, Sparkles, Crown, Zap, ShieldCheck, ChevronLeft, ChevronRight, Flag
 } from 'lucide-react';
 import {
     THEMES, EMOJIS, RECURRENCE_OPTIONS, SOUNDSCAPES,
@@ -157,7 +157,8 @@ export const DetailedTaskModal = ({
     onSubmit,
     activeContext,
     themeMode,
-    customTheme
+    customTheme,
+    onPals
 }) => {
     if (!show && !editingTask) return null;
 
@@ -197,14 +198,26 @@ export const DetailedTaskModal = ({
 
                 <div className="p-6 overflow-y-auto space-y-6">
                     <div className="space-y-2">
-                        <input
-                            type="text"
-                            placeholder="Task Title"
-                            value={formData.text}
-                            onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                            className="w-full text-xl font-bold placeholder:opacity-30 border-none focus:ring-0 p-0 bg-transparent"
-                            autoFocus
-                        />
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                placeholder="Task Title"
+                                value={formData.text}
+                                onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                                className="flex-1 text-xl font-bold placeholder:opacity-30 border-none focus:ring-0 p-0 bg-transparent"
+                                autoFocus
+                            />
+                            {formData.text && (
+                                <button
+                                    type="button"
+                                    onClick={() => onPals(formData.text)}
+                                    className="p-2 rounded-full text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all animate-in fade-in zoom-in duration-200"
+                                    title="Get AI Suggestions"
+                                >
+                                    <Sparkles size={20} className="fill-purple-500/20" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -223,6 +236,35 @@ export const DetailedTaskModal = ({
                                         }`}
                                 >
                                     {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-xs font-bold opacity-50 uppercase tracking-wider">
+                            <Flag size={12} /> Priority
+                        </label>
+                        <div className="flex gap-2">
+                            {[
+                                { id: 'low', label: 'Low', color: 'bg-blue-500' },
+                                { id: 'medium', label: 'Medium', color: 'bg-yellow-500' },
+                                { id: 'high', label: 'High', color: 'bg-red-500' }
+                            ].map(p => (
+                                <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, priority: p.id })}
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all flex items-center gap-2 ${
+                                        (formData.priority || 'medium') === p.id
+                                            ? themeMode === 'custom' 
+                                                ? 'bg-[var(--accent-color)] text-[var(--card-bg)] border-[var(--accent-color)]' 
+                                                : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white'
+                                            : 'border-opacity-20 hover:bg-black/5 dark:hover:bg-white/5'
+                                    }`}
+                                >
+                                    <div className={`w-2 h-2 rounded-full ${p.color}`} />
+                                    {p.label}
                                 </button>
                             ))}
                         </div>
@@ -603,14 +645,14 @@ export const SettingsModal = ({
                                     <div
                                         key={sound.id}
                                         className={`flex items-center gap-3 p-3 rounded-xl transition-all ${isActive
-                                                ? (themeMode === 'custom' ? 'bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30' : 'bg-slate-100 dark:bg-slate-800')
-                                                : (themeMode === 'custom' ? 'bg-white/5' : 'bg-slate-50 dark:bg-slate-800/50')
+                                            ? (themeMode === 'custom' ? 'bg-[var(--accent-color)]/10 border border-[var(--accent-color)]/30' : 'bg-slate-100 dark:bg-slate-800')
+                                            : (themeMode === 'custom' ? 'bg-white/5' : 'bg-slate-50 dark:bg-slate-800/50')
                                             }`}
                                     >
                                         {/* Icon & Label */}
                                         <div className={`flex items-center justify-center w-10 h-10 rounded-lg shrink-0 ${isActive
-                                                ? (themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--main-bg)]' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
-                                                : 'bg-white/10 opacity-50'
+                                            ? (themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--main-bg)]' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900')
+                                            : 'bg-white/10 opacity-50'
                                             }`}>
                                             {sound.icon}
                                         </div>
@@ -644,8 +686,8 @@ export const SettingsModal = ({
                                                     }
                                                 }}
                                                 className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer ${themeMode === 'custom'
-                                                        ? 'bg-white/10 accent-[var(--accent-color)]'
-                                                        : 'bg-slate-200 dark:bg-slate-700 accent-slate-900 dark:accent-white'
+                                                    ? 'bg-white/10 accent-[var(--accent-color)]'
+                                                    : 'bg-slate-200 dark:bg-slate-700 accent-slate-900 dark:accent-white'
                                                     }`}
                                             />
                                         </div>
@@ -1136,21 +1178,136 @@ export const UpgradeModal = ({ show, onClose, onUpgrade, themeMode }) => {
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        <button
-                            onClick={onUpgrade}
-                            className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-900 font-bold rounded-xl shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
-                        >
-                            <Crown size={18} className="group-hover:scale-110 transition-transform" fill="currentColor" />
-                            Upgrade Now
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="w-full py-3 text-xs font-bold opacity-50 hover:opacity-100 transition-opacity"
-                        >
-                            Maybe Later
-                        </button>
-                    </div>
+                </div>
+
+            </motion.div >
+        </div >
+    );
+};
+
+// Calendar Modal
+export const CalendarModal = ({ show, onClose, tasks, themeMode, customTheme }) => {
+    if (!show) return null;
+
+    const [currentDate, setCurrentDate] = React.useState(new Date());
+    const [selectedDate, setSelectedDate] = React.useState(new Date());
+
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+
+    const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
+    const getTasksForDate = (day) => {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+        const offset = date.getTimezoneOffset();
+        const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+        const dateStr = localDate.toISOString().split('T')[0];
+        return tasks.filter(t => {
+            if (!t.dueDate) return false;
+            // Extract date part from ISO timestamp
+            const taskDateStr = t.dueDate.split('T')[0];
+            return taskDateStr === dateStr && !t.isDone;
+        });
+    };
+
+    const isSelected = (day) => {
+        return day === selectedDate.getDate() && currentDate.getMonth() === selectedDate.getMonth() && currentDate.getFullYear() === selectedDate.getFullYear();
+    };
+
+    const isToday = (day) => {
+        const today = new Date();
+        return day === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
+    };
+
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    // Get tasks for selected day
+    const selectedDateStr = new Date(selectedDate.getTime() - (selectedDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    const selectedTasks = tasks.filter(t => {
+        if (!t.dueDate) return false;
+        const taskDateStr = t.dueDate.split('T')[0];
+        return taskDateStr === selectedDateStr && !t.isDone;
+    });
+
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={onClose}
+                className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm"
+            />
+            <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                className={`relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden p-6 ring-1 ring-slate-900/5 dark:ring-white/10 ${themeMode === 'custom' ? 'bg-[var(--card-bg)] text-[var(--text-color)] border border-[var(--border-color)]' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white'}`}
+            >
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                        <Calendar size={20} /> Calendar
+                    </h2>
+                    <button onClick={onClose} className="opacity-50 hover:opacity-100 p-1 rounded hover:bg-black/5 dark:hover:bg-white/10"><X size={20} /></button>
+                </div>
+
+                <div className="flex items-center justify-between mb-6">
+                    <button onClick={prevMonth} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg"><ChevronLeft size={20} /></button>
+                    <div className="text-lg font-bold">{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</div>
+                    <button onClick={nextMonth} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg"><ChevronRight size={20} /></button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 mb-6 text-center">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                        <div key={d} className="text-xs font-bold opacity-40 uppercase py-2">{d}</div>
+                    ))}
+
+                    {Array.from({ length: firstDay }).map((_, i) => (
+                        <div key={`empty-${i}`} />
+                    ))}
+
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const dayTasks = getTasksForDate(day);
+                        const hasTasks = dayTasks.length > 0;
+                        const selected = isSelected(day);
+                        const today = isToday(day);
+
+                        return (
+                            <button
+                                key={day}
+                                onClick={() => setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}
+                                className={`h-10 rounded-lg flex flex-col items-center justify-center relative transition-all ${selected
+                                    ? (themeMode === 'custom' ? 'bg-[var(--accent-color)] text-[var(--main-bg)] font-bold' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold')
+                                    : today
+                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-bold'
+                                        : 'hover:bg-black/5 dark:hover:bg-white/5'
+                                    }`}
+                            >
+                                <span className="text-sm">{day}</span>
+                                {hasTasks && (
+                                    <div className={`w-1 h-1 rounded-full mt-1 ${selected ? 'bg-white dark:bg-slate-900' : 'bg-purple-500'}`} />
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className={`p-4 rounded-xl border ${themeMode === 'custom' ? 'border-[var(--border-color)] bg-white/5' : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50'}`}>
+                    <h3 className="text-xs font-bold opacity-50 uppercase tracking-wider mb-3">
+                        {selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </h3>
+
+                    {selectedTasks.length > 0 ? (
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {selectedTasks.map(task => (
+                                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg bg-white/50 dark:bg-slate-800/50">
+                                    <div className={`w-2 h-2 rounded-full ${task.priority === 'high' ? 'bg-red-500' : 'bg-slate-400'}`} />
+                                    <span className="text-sm font-medium truncate">{task.text}</span>
+                                    {task.time && <span className="text-xs opacity-50 ml-auto font-mono">{task.time}</span>}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-sm opacity-50 italic py-2">No tasks due this day.</div>
+                    )}
                 </div>
             </motion.div>
         </div>

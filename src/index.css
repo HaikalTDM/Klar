@@ -1,3 +1,65 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Premium Scrollbar Global Variables */
+:root {
+    --scrollbar-thumb: #cbd5e1;
+    /* slate-300 */
+    --scrollbar-track: transparent;
+    --scrollbar-thumb-hover: #94a3b8;
+    /* slate-400 */
+}
+
+.dark {
+    --scrollbar-thumb: #334155;
+    /* slate-700 */
+    --scrollbar-thumb-hover: #475569;
+    /* slate-600 */
+}
+
+@layer base {
+
+    /* Chrome, Edge, Safari */
+    *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    *::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        background-color: var(--scrollbar-thumb);
+        border-radius: 20px;
+        border: 2px solid transparent;
+        /* Creates padding effect */
+        background-clip: content-box;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+        background-color: var(--scrollbar-thumb-hover);
+        border: 0px solid transparent;
+        /* Full width on hover for better grab */
+        background-clip: border-box;
+    }
+}
+
+/* Firefox Support */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* Utilities */
+@layer utilities {
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+}

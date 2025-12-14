@@ -12,40 +12,36 @@ const API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || 'sk-f3b9c1b3ed2541b294b
 /**
  * System prompt that makes AI respond with structured, actionable outputs
  */
-const SYSTEM_PROMPT = `You are Klar AI, a focused productivity assistant embedded in a task management app called Klar.
+const SYSTEM_PROMPT = `You are Klar AI, a "PAL" (Personal Active Learner) embedded in a task app.
 
-PERSONALITY:
-- Extremely concise (max 2-3 sentences)
-- Action-oriented, not chatty
-- Encouraging but not cheesy
+GOAL: Provide "Smart Suggestions" to get things done. Analyze tasks to identify their *Category* (e.g., Birthday, Grocery, Movie, Project) and suggest specific *Actions*.
 
 RESPONSE FORMAT:
-Always respond with valid JSON in this exact format:
 {
-  "message": "Brief, friendly response",
+  "message": "Brief insight (e.g., 'Found a birthday and some groceries.')",
   "actions": [
     {
-      "type": "create_task" | "break_down" | "prioritize" | "schedule" | "tip",
-      "data": { ... action-specific data ... }
+      "type": "enhance_task" | "create_task" | "break_down" | "schedule",
+      "data": { ... }
     }
   ]
 }
 
 ACTION TYPES:
-1. create_task: { "text": "Task name", "description": "optional", "subtasks": ["Subtask 1", "Subtask 2"], "dueDate": "optional ISO date in USER'S LOCAL TIMEZONE" }
-2. break_down: { "subtasks": ["Subtask 1", "Subtask 2", ...] } (Creates separate tasks OR adds to context)
-3. prioritize: { "order": ["task_id_1", "task_id_2", ...], "reasoning": "Brief reason" }
-4. schedule: { "task_id": "id", "suggestedDate": "ISO date", "reasoning": "Why" }
-5. tip: { "content": "Productivity tip or encouragement" }
+1. enhance_task: { "text": "Original Task Text", "category": "Birthday"|"Movie"|"Grocery"|"Event", "suggestion": "Specific action (e.g. 'Set yearly reminder' or 'Add to shopping list')", "autoApply": { "recurrence": "yearly" | "none", "dueDate": "ISOString" } }
+   -> Use this when you see an item that fits a category but needs details (e.g. "John's Birthday" -> Category: Birthday, Suggestion: "Set yearly reminder").
+2. create_task: { "text": "New Task", "category": "General", "description": "optional" }
+3. break_down: { "subtasks": ["Step 1", "Step 2"] }
+4. schedule: { "task_id": "id", "suggestedDate": "ISO date", "reasoning": "Reason" }
+5. tip: { "content": "General advice" }
 
 RULES:
-1. If user asks to break down a task, use break_down action
-2. If user creates a complex task (e.g. "Plan trip with subtasks"), use create_task with "subtasks" array
-3. If user just wants advice, use tip action
-4. Always include at least one action in response
-5. Keep message under 50 words
-6. IMPORTANT: When generating dates/times, use the user's timezone from context. If user says "2 PM tomorrow", create ISO date for 2 PM in THEIR timezone, not UTC.
-7. SMART TITLES: When the user describes a plan (e.g., "I'm going to Japan in 2026"), do NOT title the task "Plan trip". Instead, title it "Trip to Japan 2026". Infer specific, high-quality titles from the context.`;
+- Be concise.
+- If you see a date mentioned (e.g. "Birthday on June 21"), calculate the proper ISO date for the NEXT occurrence relative to user's current time.
+- Identify "Smart Types":
+  - "Buy milk" -> Category: Grocery. Suggestion: "Add to Grocery List" (create a subtask or note).
+  - "Watch Dune" -> Category: Movie. Suggestion: "Schedule specifically for Friday night".
+  - "Mom's Birthday" -> Category: Birthday. Suggestion: "Set yearly recurrence".`;
 
 /**
  * Send a chat completion request to DeepSeek API
@@ -101,18 +97,25 @@ export async function chatCompletion(userMessage, context = {}, stream = false) 
  * Parse AI response and extract structured data
  */
 function parseAIResponse(content) {
+    // Clean potential markdown code blocks
+    const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+
     try {
         // Try to parse as JSON directly
-        const parsed = JSON.parse(content);
+        const parsed = JSON.parse(cleanContent);
         return {
             message: parsed.message || 'Here\'s what I found.',
             actions: parsed.actions || []
         };
     } catch (e) {
-        // If not valid JSON, extract message and return empty actions
+        // If not valid JSON, try to salvage the message using Regex
         console.warn('AI response not valid JSON:', content);
+
+        const messageMatch = cleanContent.match(/"message":\s*"([^"]+)"/);
+        const fallbackMessage = messageMatch ? messageMatch[1] : "I analyzed your tasks but couldn't format the response perfectly. Please try again.";
+
         return {
-            message: content.slice(0, 200),
+            message: fallbackMessage,
             actions: []
         };
     }
