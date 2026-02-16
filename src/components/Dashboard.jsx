@@ -304,7 +304,7 @@ export default function Dashboard({
                     <textarea
                         value={quickNote}
                         onChange={(e) => setQuickNote(e.target.value)}
-                        placeholder="Type something..."
+                        placeholder="Type something.."
                         className={`w-full h-24 bg-transparent resize-none outline-none ${textPrimary} placeholder-opacity-50`}
                     />
                 </motion.div>
