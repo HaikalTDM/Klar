@@ -369,25 +369,27 @@ export default function KlarApp() {
     }, [user]);
 
     // --- 2.5 Task Subscription (Dynamic) ---
+    const activeCtx = contexts.find(c => c.id === activeContextId);
+    const isSharedContext = activeCtx?.isShared;
+
     useEffect(() => {
         if (!user || !activeContextId) return;
 
-        const activeCtx = contexts.find(c => c.id === activeContextId);
         let tasksRef;
 
-        if (activeCtx?.isShared) {
+        if (isSharedContext) {
             tasksRef = collection(db, 'artifacts', appId, 'shared_contexts', activeContextId, 'tasks');
         } else {
             tasksRef = collection(db, 'artifacts', appId, 'users', user.uid, 'tasks');
         }
 
         const unsubTasks = onSnapshot(tasksRef, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), contextId: activeCtx?.isShared ? activeContextId : doc.data().contextId }));
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), contextId: isSharedContext ? activeContextId : doc.data().contextId }));
             setTasks(data);
         });
 
         return () => unsubTasks();
-    }, [user, activeContextId, contexts]);
+    }, [user, activeContextId, isSharedContext]);
 
     // --- 2.6 All Tasks Subscription (for Calendar) ---
     useEffect(() => {
